@@ -1,0 +1,481 @@
+{
+  "$defs": {
+    "APISurface": {
+      "additionalProperties": false,
+      "description": "One API a connector talks to.",
+      "properties": {
+        "documentation_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Documentation Url"
+        },
+        "name": {
+          "description": "e.g. 'Cisco AXL', 'Microsoft Graph', 'Teams PowerShell'.",
+          "title": "Name",
+          "type": "string"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "transport": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SOAP, REST, PowerShell, SSH, SFTP.",
+          "title": "Transport"
+        },
+        "verification_method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "e.g. 'vendor docs', 'recorded cassette from lab cluster 14.0'.",
+          "title": "Verification Method"
+        },
+        "verified_at": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "When the endpoints and schema used here were last checked against vendor documentation or a live system. Absence is a reportable gap, not a default.",
+          "title": "Verified At"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Version this connector targets. None means version-negotiated at runtime, which is correct for AXL (WSDL per CUCM release).",
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "APISurface",
+      "type": "object"
+    },
+    "CredentialKind": {
+      "enum": [
+        "USERNAME_PASSWORD",
+        "CLIENT_CREDENTIALS",
+        "CERTIFICATE",
+        "API_TOKEN",
+        "SSH_KEY"
+      ],
+      "title": "CredentialKind",
+      "type": "string"
+    },
+    "CredentialRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/CredentialKind"
+        },
+        "minimum_scope": {
+          "$ref": "#/$defs/CredentialScope",
+          "default": "READ_ONLY"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "purpose": {
+          "description": "e.g. 'axl-read', 'graph-app', 'sat-ssh'.",
+          "title": "Purpose",
+          "type": "string"
+        },
+        "required_roles": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Roles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "purpose",
+        "kind"
+      ],
+      "title": "CredentialRequirement",
+      "type": "object"
+    },
+    "CredentialScope": {
+      "enum": [
+        "READ_ONLY",
+        "READ_WRITE"
+      ],
+      "title": "CredentialScope",
+      "type": "string"
+    },
+    "EntityCapability": {
+      "additionalProperties": false,
+      "description": "What a connector can do with one canonical entity kind.",
+      "properties": {
+        "api_surface": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which declared APISurface serves this kind.",
+          "title": "Api Surface"
+        },
+        "can_apply": {
+          "default": false,
+          "title": "Can Apply",
+          "type": "boolean"
+        },
+        "can_extract": {
+          "default": false,
+          "title": "Can Extract",
+          "type": "boolean"
+        },
+        "entity_kind": {
+          "title": "Entity Kind",
+          "type": "string"
+        },
+        "expected_fidelity": {
+          "$ref": "#/$defs/FidelityLevel",
+          "default": "DEGRADED",
+          "description": "Best case for this kind on this platform. Never optimistic by default; a per-object assessment can still come out worse."
+        },
+        "fidelity_notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fidelity Notes"
+        },
+        "known_gaps": {
+          "description": "Attributes or behaviours this connector knowingly cannot carry. Surfaced in the assessment before the customer commits, not discovered at cutover.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Known Gaps",
+          "type": "array"
+        },
+        "required_permissions": {
+          "description": "API scopes / roles needed, e.g. 'User.Read.All'.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Permissions",
+          "type": "array"
+        },
+        "supported_verbs": {
+          "items": {
+            "$ref": "#/$defs/WriteVerb"
+          },
+          "title": "Supported Verbs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entity_kind"
+      ],
+      "title": "EntityCapability",
+      "type": "object"
+    },
+    "EventualConsistencyPolicy": {
+      "additionalProperties": false,
+      "description": "Confirm-poll settings for platforms where a write is not immediately readable.\n\nTeams is the canonical case: a licence assignment or number assignment can\ntake minutes to become visible. Assuming read-your-write here produces\nmigrations that report success and then fail validation.",
+      "properties": {
+        "confirm_poll_interval_seconds": {
+          "default": 5.0,
+          "exclusiveMinimum": 0,
+          "title": "Confirm Poll Interval Seconds",
+          "type": "number"
+        },
+        "confirm_poll_timeout_seconds": {
+          "default": 300.0,
+          "exclusiveMinimum": 0,
+          "title": "Confirm Poll Timeout Seconds",
+          "type": "number"
+        },
+        "confirm_required_for_kinds": {
+          "description": "Entity kinds whose writes must be confirmed by re-reading before the operation counts as successful.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Confirm Required For Kinds",
+          "type": "array"
+        },
+        "is_eventually_consistent": {
+          "default": false,
+          "title": "Is Eventually Consistent",
+          "type": "boolean"
+        }
+      },
+      "title": "EventualConsistencyPolicy",
+      "type": "object"
+    },
+    "FidelityLevel": {
+      "description": "How faithfully an entity survives the transform. See docs/fidelity-taxonomy.md.",
+      "enum": [
+        "LOSSLESS",
+        "DEGRADED",
+        "UNMAPPABLE"
+      ],
+      "title": "FidelityLevel",
+      "type": "string"
+    },
+    "Platform": {
+      "description": "Platforms the canonical model can describe.\n\nAdding a member here does not imply a working connector exists; the\nconnector's capability manifest is the authority on what is actually\nsupported.",
+      "enum": [
+        "cisco.cucm",
+        "cisco.unity_connection",
+        "cisco.uccx",
+        "cisco.ucce",
+        "avaya.aura",
+        "avaya.aura_messaging",
+        "microsoft.sfb_server",
+        "microsoft.teams",
+        "slack",
+        "genesys.cloud",
+        "mitel",
+        "generic.sip",
+        "reference.memorypbx"
+      ],
+      "title": "Platform",
+      "type": "string"
+    },
+    "RateLimitPolicy": {
+      "additionalProperties": false,
+      "description": "How hard the connector may push the platform.\n\nThe execution engine obeys these; they are not advisory. Getting throttled\ninto a lockout on a production publisher mid-cutover is a self-inflicted\noutage.",
+      "properties": {
+        "batch_size": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Preferred bulk-operation size, where the API supports batching.",
+          "title": "Batch Size"
+        },
+        "burst_capacity": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Burst Capacity"
+        },
+        "honours_retry_after": {
+          "default": true,
+          "description": "Whether the platform sends a usable Retry-After / 429.",
+          "title": "Honours Retry After",
+          "type": "boolean"
+        },
+        "initial_backoff_seconds": {
+          "default": 1.0,
+          "exclusiveMinimum": 0,
+          "title": "Initial Backoff Seconds",
+          "type": "number"
+        },
+        "max_attempts": {
+          "default": 5,
+          "minimum": 1,
+          "title": "Max Attempts",
+          "type": "integer"
+        },
+        "max_backoff_seconds": {
+          "default": 60.0,
+          "exclusiveMinimum": 0,
+          "title": "Max Backoff Seconds",
+          "type": "number"
+        },
+        "max_concurrent_requests": {
+          "default": 4,
+          "minimum": 1,
+          "title": "Max Concurrent Requests",
+          "type": "integer"
+        },
+        "requests_per_second": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requests Per Second"
+        }
+      },
+      "title": "RateLimitPolicy",
+      "type": "object"
+    },
+    "WriteVerb": {
+      "enum": [
+        "CREATE",
+        "UPDATE",
+        "DELETE",
+        "ASSIGN",
+        "UNASSIGN"
+      ],
+      "title": "WriteVerb",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.ucm-bridge.dev/CapabilityManifest.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "The complete declared contract of one connector.",
+  "properties": {
+    "air_gap_capable": {
+      "default": true,
+      "description": "Whether this connector can run from an on-prem collector agent with no outbound internet access.",
+      "title": "Air Gap Capable",
+      "type": "boolean"
+    },
+    "api_surfaces": {
+      "items": {
+        "$ref": "#/$defs/APISurface"
+      },
+      "title": "Api Surfaces",
+      "type": "array"
+    },
+    "connector_id": {
+      "description": "Stable id, e.g. 'cisco-cucm', 'microsoft-teams'.",
+      "title": "Connector Id",
+      "type": "string"
+    },
+    "connector_version": {
+      "title": "Connector Version",
+      "type": "string"
+    },
+    "credential_requirements": {
+      "items": {
+        "$ref": "#/$defs/CredentialRequirement"
+      },
+      "title": "Credential Requirements",
+      "type": "array"
+    },
+    "display_name": {
+      "title": "Display Name",
+      "type": "string"
+    },
+    "entities": {
+      "items": {
+        "$ref": "#/$defs/EntityCapability"
+      },
+      "title": "Entities",
+      "type": "array"
+    },
+    "eventual_consistency": {
+      "$ref": "#/$defs/EventualConsistencyPolicy"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    },
+    "platform": {
+      "$ref": "#/$defs/Platform"
+    },
+    "rate_limits": {
+      "$ref": "#/$defs/RateLimitPolicy"
+    },
+    "requires_publisher_node": {
+      "default": false,
+      "description": "True for CUCM: configuration writes go to the publisher only.",
+      "title": "Requires Publisher Node",
+      "type": "boolean"
+    },
+    "supports_dry_run": {
+      "default": true,
+      "description": "Must be true. A connector that cannot preview a write cannot be used for production writes, because dry run is mandatory.",
+      "title": "Supports Dry Run",
+      "type": "boolean"
+    },
+    "supports_rollback": {
+      "default": false,
+      "description": "Whether the connector can capture pre-change state and emit inverse operations. False means rollback for this platform is manual.",
+      "title": "Supports Rollback",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "connector_id",
+    "connector_version",
+    "platform",
+    "display_name"
+  ],
+  "title": "CapabilityManifest",
+  "type": "object",
+  "x-canonical-model-version": "1.0.0"
+}

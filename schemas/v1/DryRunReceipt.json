@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "OperationPreview": {
+      "additionalProperties": false,
+      "description": "What a single operation would do, as produced by a dry run.",
+      "properties": {
+        "api_call": {
+          "description": "The exact call that would be issued, e.g. 'AXL:addPhone' or 'Set-CsPhoneNumberAssignment -Identity ... -PhoneNumber ...'.",
+          "title": "Api Call",
+          "type": "string"
+        },
+        "current_target_state": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None when the object does not yet exist on the target.",
+          "title": "Current Target State"
+        },
+        "op_id": {
+          "title": "Op Id",
+          "type": "string"
+        },
+        "proposed_state": {
+          "additionalProperties": true,
+          "title": "Proposed State",
+          "type": "object"
+        },
+        "target_native_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Native Key"
+        },
+        "target_native_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Native Type"
+        },
+        "verb": {
+          "$ref": "#/$defs/WriteVerb"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "would_change": {
+          "default": true,
+          "description": "False means the target already matches; the real run will skip it.",
+          "title": "Would Change",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "op_id",
+        "verb",
+        "api_call"
+      ],
+      "title": "OperationPreview",
+      "type": "object"
+    },
+    "WriteVerb": {
+      "enum": [
+        "CREATE",
+        "UPDATE",
+        "DELETE",
+        "ASSIGN",
+        "UNASSIGN"
+      ],
+      "title": "WriteVerb",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.ucm-bridge.dev/DryRunReceipt.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Evidence that a dry run of a specific plan completed.\n\nCarries the plan digest so a production run can prove it is executing the\nplan that was previewed and approved, not a later edit of it.",
+  "properties": {
+    "connector_id": {
+      "title": "Connector Id",
+      "type": "string"
+    },
+    "no_change_count": {
+      "default": 0,
+      "title": "No Change Count",
+      "type": "integer"
+    },
+    "plan_digest": {
+      "title": "Plan Digest",
+      "type": "string"
+    },
+    "plan_id": {
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "previews": {
+      "items": {
+        "$ref": "#/$defs/OperationPreview"
+      },
+      "title": "Previews",
+      "type": "array"
+    },
+    "produced_at": {
+      "format": "date-time",
+      "title": "Produced At",
+      "type": "string"
+    },
+    "receipt_id": {
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    },
+    "would_change_count": {
+      "default": 0,
+      "title": "Would Change Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "plan_id",
+    "plan_digest",
+    "connector_id"
+  ],
+  "title": "DryRunReceipt",
+  "type": "object",
+  "x-canonical-model-version": "1.0.0"
+}

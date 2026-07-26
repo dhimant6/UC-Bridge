@@ -1,0 +1,163 @@
+{
+  "$defs": {
+    "FidelityLevel": {
+      "description": "How faithfully an entity survives the transform. See docs/fidelity-taxonomy.md.",
+      "enum": [
+        "LOSSLESS",
+        "DEGRADED",
+        "UNMAPPABLE"
+      ],
+      "title": "FidelityLevel",
+      "type": "string"
+    },
+    "WriteOperation": {
+      "additionalProperties": false,
+      "description": "One intended change to one target object.",
+      "properties": {
+        "canonical_id": {
+          "title": "Canonical Id",
+          "type": "string"
+        },
+        "depends_on": {
+          "description": "op_ids that must succeed first.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Depends On",
+          "type": "array"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "entity_kind": {
+          "title": "Entity Kind",
+          "type": "string"
+        },
+        "fidelity": {
+          "$ref": "#/$defs/FidelityLevel",
+          "default": "DEGRADED"
+        },
+        "idempotency_key": {
+          "description": "Stable across retries and re-runs. A retry with the same key must not create a second object.",
+          "title": "Idempotency Key",
+          "type": "string"
+        },
+        "op_id": {
+          "title": "Op Id",
+          "type": "string"
+        },
+        "payload": {
+          "additionalProperties": true,
+          "title": "Payload",
+          "type": "object"
+        },
+        "site_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Site Code"
+        },
+        "verb": {
+          "$ref": "#/$defs/WriteVerb"
+        }
+      },
+      "required": [
+        "op_id",
+        "verb",
+        "entity_kind",
+        "canonical_id",
+        "idempotency_key"
+      ],
+      "title": "WriteOperation",
+      "type": "object"
+    },
+    "WriteVerb": {
+      "enum": [
+        "CREATE",
+        "UPDATE",
+        "DELETE",
+        "ASSIGN",
+        "UNASSIGN"
+      ],
+      "title": "WriteVerb",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.ucm-bridge.dev/ApplyPlan.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "An ordered, digest-identified set of writes for one connector.",
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "estate_id": {
+      "title": "Estate Id",
+      "type": "string"
+    },
+    "operations": {
+      "items": {
+        "$ref": "#/$defs/WriteOperation"
+      },
+      "title": "Operations",
+      "type": "array"
+    },
+    "plan_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Plan Digest"
+    },
+    "plan_id": {
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "tenant_id": {
+      "title": "Tenant Id",
+      "type": "string"
+    },
+    "wave_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Wave Id"
+    }
+  },
+  "required": [
+    "plan_id",
+    "tenant_id",
+    "estate_id"
+  ],
+  "title": "ApplyPlan",
+  "type": "object",
+  "x-canonical-model-version": "1.0.0"
+}

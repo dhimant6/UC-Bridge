@@ -1,0 +1,710 @@
+{
+  "$defs": {
+    "DegradedAttribute": {
+      "additionalProperties": false,
+      "description": "One specific way an entity loses fidelity. Vague entries are worse than none.",
+      "properties": {
+        "attribute": {
+          "description": "Canonical attribute path, e.g. 'shared_appearance.privacy'.",
+          "title": "Attribute",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why the target cannot represent it faithfully.",
+          "title": "Reason",
+          "type": "string"
+        },
+        "source_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Value"
+        },
+        "target_behaviour": {
+          "description": "What will actually happen on the target instead. This is the sentence the customer reads in the fidelity report, so write it for them.",
+          "title": "Target Behaviour",
+          "type": "string"
+        }
+      },
+      "required": [
+        "attribute",
+        "reason",
+        "target_behaviour"
+      ],
+      "title": "DegradedAttribute",
+      "type": "object"
+    },
+    "DeviceType": {
+      "enum": [
+        "HARD_PHONE",
+        "SOFT_PHONE",
+        "ROOM_SYSTEM",
+        "CONFERENCE_PHONE",
+        "DECT",
+        "ATA",
+        "ANALOGUE",
+        "PAGING",
+        "FAX",
+        "MOBILE_CLIENT",
+        "SIP_GENERIC"
+      ],
+      "title": "DeviceType",
+      "type": "string"
+    },
+    "FidelityAssessment": {
+      "additionalProperties": false,
+      "description": "A fidelity claim, with the evidence required to make it.\n\nThe guardrail 'never mark an entity LOSSLESS by default' is enforced here\nrather than left to connector authors' discipline.",
+      "properties": {
+        "assessed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assessed At"
+        },
+        "assessed_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Connector id or mapping-rule id that made this claim.",
+          "title": "Assessed By"
+        },
+        "degraded_attributes": {
+          "items": {
+            "$ref": "#/$defs/DegradedAttribute"
+          },
+          "title": "Degraded Attributes",
+          "type": "array"
+        },
+        "level": {
+          "$ref": "#/$defs/FidelityLevel",
+          "default": "DEGRADED"
+        },
+        "manual_effort_minutes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Estimated manual remediation effort. Required for UNMAPPABLE so the assessment report can total up the human cost of a migration.",
+          "title": "Manual Effort Minutes"
+        },
+        "rationale": {
+          "default": "Not yet assessed: no fidelity rule has evaluated this entity.",
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "unmapped_source_attributes": {
+          "description": "Keys present in source_ref.native_attributes with no canonical home.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Unmapped Source Attributes",
+          "type": "array"
+        }
+      },
+      "title": "FidelityAssessment",
+      "type": "object"
+    },
+    "FidelityLevel": {
+      "description": "How faithfully an entity survives the transform. See docs/fidelity-taxonomy.md.",
+      "enum": [
+        "LOSSLESS",
+        "DEGRADED",
+        "UNMAPPABLE"
+      ],
+      "title": "FidelityLevel",
+      "type": "string"
+    },
+    "Platform": {
+      "description": "Platforms the canonical model can describe.\n\nAdding a member here does not imply a working connector exists; the\nconnector's capability manifest is the authority on what is actually\nsupported.",
+      "enum": [
+        "cisco.cucm",
+        "cisco.unity_connection",
+        "cisco.uccx",
+        "cisco.ucce",
+        "avaya.aura",
+        "avaya.aura_messaging",
+        "microsoft.sfb_server",
+        "microsoft.teams",
+        "slack",
+        "genesys.cloud",
+        "mitel",
+        "generic.sip",
+        "reference.memorypbx"
+      ],
+      "title": "Platform",
+      "type": "string"
+    },
+    "RegistrationState": {
+      "enum": [
+        "REGISTERED",
+        "UNREGISTERED",
+        "REJECTED",
+        "PARTIALLY_REGISTERED",
+        "UNKNOWN"
+      ],
+      "title": "RegistrationState",
+      "type": "string"
+    },
+    "SignallingProtocol": {
+      "enum": [
+        "SIP",
+        "SCCP",
+        "H323",
+        "MGCP",
+        "H248",
+        "PROPRIETARY",
+        "ANALOGUE"
+      ],
+      "title": "SignallingProtocol",
+      "type": "string"
+    },
+    "SourceRef": {
+      "additionalProperties": false,
+      "description": "Where this entity came from. Populated by ``Extract``, never by ``Apply``.",
+      "properties": {
+        "api_surface": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Which API produced this, e.g. 'AXL:getPhone', 'Graph:/users', 'SAT:display station'. Needed to reproduce an extraction.",
+          "title": "Api Surface"
+        },
+        "extracted_at": {
+          "format": "date-time",
+          "title": "Extracted At",
+          "type": "string"
+        },
+        "instance_id": {
+          "description": "Cluster / tenant / workspace identifier. Distinguishes two CUCM clusters or two Teams tenants belonging to the same customer.",
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "native_attributes": {
+          "additionalProperties": true,
+          "description": "Raw source attributes retained verbatim, including ones the canonical model does not map. Nothing is silently discarded; the assessment engine reports on the unmapped remainder.",
+          "title": "Native Attributes",
+          "type": "object"
+        },
+        "native_key": {
+          "description": "Vendor primary key: AXL pkid, Graph objectId, SMGR uid, Slack user id.",
+          "title": "Native Key",
+          "type": "string"
+        },
+        "native_type": {
+          "description": "Vendor's own name for the object type, e.g. 'Phone', 'CsOnlineUser', 'station'. Kept verbatim for audit.",
+          "title": "Native Type",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/Platform"
+        },
+        "raw_sql_used": {
+          "default": false,
+          "description": "True if this object was read via an untyped escape hatch such as AXL executeSQLQuery. Surfaced in the audit log because raw SQL bypasses the vendor's own schema guarantees.",
+          "title": "Raw Sql Used",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "platform",
+        "instance_id",
+        "native_type",
+        "native_key"
+      ],
+      "title": "SourceRef",
+      "type": "object"
+    },
+    "TargetRef": {
+      "additionalProperties": false,
+      "description": "Where this entity landed. Populated by ``Apply`` only.",
+      "properties": {
+        "applied_at": {
+          "format": "date-time",
+          "title": "Applied At",
+          "type": "string"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Ties this write back to a run and an audit record.",
+          "title": "Correlation Id"
+        },
+        "dry_run": {
+          "default": true,
+          "description": "True when the reference was produced by a dry run and therefore describes an object that does not exist on the target.",
+          "title": "Dry Run",
+          "type": "boolean"
+        },
+        "instance_id": {
+          "title": "Instance Id",
+          "type": "string"
+        },
+        "native_key": {
+          "title": "Native Key",
+          "type": "string"
+        },
+        "native_type": {
+          "title": "Native Type",
+          "type": "string"
+        },
+        "platform": {
+          "$ref": "#/$defs/Platform"
+        }
+      },
+      "required": [
+        "platform",
+        "instance_id",
+        "native_type",
+        "native_key"
+      ],
+      "title": "TargetRef",
+      "type": "object"
+    },
+    "TransformLogEntry": {
+      "additionalProperties": false,
+      "description": "One recorded step in an entity's journey. Append-only; never rewritten.",
+      "properties": {
+        "actor": {
+          "description": "Connector id, rule id, or user principal that acted.",
+          "title": "Actor",
+          "type": "string"
+        },
+        "after": {
+          "default": null,
+          "title": "After"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "attribute": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribute"
+        },
+        "before": {
+          "default": null,
+          "title": "Before"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "fidelity_impact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FidelityLevel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "operation": {
+          "$ref": "#/$defs/TransformOperation"
+        },
+        "rule_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mapping-profile rule that caused this, if any.",
+          "title": "Rule Ref"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "actor",
+        "summary"
+      ],
+      "title": "TransformLogEntry",
+      "type": "object"
+    },
+    "TransformOperation": {
+      "enum": [
+        "EXTRACT",
+        "NORMALISE",
+        "MAP",
+        "OVERRIDE",
+        "APPLY",
+        "ROLLBACK",
+        "QUARANTINE"
+      ],
+      "title": "TransformOperation",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.ucm-bridge.dev/entities/Device.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Any endpoint that registers, or that occupies a port.",
+  "properties": {
+    "analogue_port": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Gateway slot/subunit/port for analogue endpoints.",
+      "title": "Analogue Port"
+    },
+    "button_template_ref": {
+      "anyOf": [
+        {
+          "description": "canonical_id of another entity in the same snapshot (a reference).",
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Button Template Ref"
+    },
+    "canonical_id": {
+      "description": "canonical_id of another entity in the same snapshot (a reference).",
+      "minLength": 1,
+      "title": "Canonical Id",
+      "type": "string"
+    },
+    "checksum": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Digest of extraction-scoped content. Set by seal(); verified on load.",
+      "title": "Checksum"
+    },
+    "device_name": {
+      "description": "Native device name, e.g. 'SEP001122334455'.",
+      "title": "Device Name",
+      "type": "string"
+    },
+    "device_pool_ref": {
+      "anyOf": [
+        {
+          "description": "canonical_id of another entity in the same snapshot (a reference).",
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Device Pool Ref"
+    },
+    "device_type": {
+      "$ref": "#/$defs/DeviceType",
+      "default": "HARD_PHONE"
+    },
+    "display_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Human label for grids and reports. Not an identifier.",
+      "title": "Display Name"
+    },
+    "fidelity": {
+      "$ref": "#/$defs/FidelityAssessment"
+    },
+    "firmware_ref": {
+      "anyOf": [
+        {
+          "description": "canonical_id of another entity in the same snapshot (a reference).",
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Firmware Ref"
+    },
+    "gateway_ref": {
+      "anyOf": [
+        {
+          "description": "canonical_id of another entity in the same snapshot (a reference).",
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Gateway Ref"
+    },
+    "kind": {
+      "const": "Device",
+      "default": "Device",
+      "title": "Kind",
+      "type": "string"
+    },
+    "last_registered_at": {
+      "anyOf": [
+        {
+          "format": "date",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Registered At"
+    },
+    "line_refs": {
+      "description": "Ordered by button position.",
+      "items": {
+        "description": "canonical_id of another entity in the same snapshot (a reference).",
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Line Refs",
+      "type": "array"
+    },
+    "mac_address": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Normalised uppercase hex, no separators.",
+      "title": "Mac Address"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model"
+    },
+    "owner_ref": {
+      "anyOf": [
+        {
+          "description": "canonical_id of another entity in the same snapshot (a reference).",
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Owner Ref"
+    },
+    "protocol": {
+      "$ref": "#/$defs/SignallingProtocol",
+      "default": "SIP"
+    },
+    "registration_state": {
+      "$ref": "#/$defs/RegistrationState",
+      "default": "UNKNOWN"
+    },
+    "replacement_required": {
+      "default": false,
+      "description": "Set by assessment: the model cannot register against the target and must be replaced or reflashed. Drives hardware budget in the estate report.",
+      "title": "Replacement Required",
+      "type": "boolean"
+    },
+    "security_profile": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Security Profile"
+    },
+    "sip_profile_ref": {
+      "anyOf": [
+        {
+          "description": "canonical_id of another entity in the same snapshot (a reference).",
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sip Profile Ref"
+    },
+    "site_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Site Code"
+    },
+    "source_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SourceRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tags": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Operator-assigned labels: wave, owner, exception id.",
+      "title": "Tags",
+      "type": "object"
+    },
+    "target_equivalent_model": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Suggested replacement, where one exists.",
+      "title": "Target Equivalent Model"
+    },
+    "target_ref": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TargetRef"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "transform_log": {
+      "items": {
+        "$ref": "#/$defs/TransformLogEntry"
+      },
+      "title": "Transform Log",
+      "type": "array"
+    },
+    "vendor": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Vendor"
+    }
+  },
+  "required": [
+    "canonical_id",
+    "device_name"
+  ],
+  "title": "Device",
+  "type": "object",
+  "x-canonical-model-version": "1.0.0"
+}

@@ -1,0 +1,383 @@
+{
+  "$defs": {
+    "Approval": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_at": {
+          "format": "date-time",
+          "title": "Approved At",
+          "type": "string"
+        },
+        "approver": {
+          "description": "User principal. Two distinct values are required.",
+          "title": "Approver",
+          "type": "string"
+        },
+        "comment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Comment"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        }
+      },
+      "required": [
+        "approver"
+      ],
+      "title": "Approval",
+      "type": "object"
+    },
+    "ChangeWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "date-time",
+          "title": "End",
+          "type": "string"
+        },
+        "reference": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Change-record id, e.g. 'CHG0042311'.",
+          "title": "Reference"
+        },
+        "start": {
+          "format": "date-time",
+          "title": "Start",
+          "type": "string"
+        },
+        "timezone": {
+          "default": "UTC",
+          "title": "Timezone",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "ChangeWindow",
+      "type": "object"
+    },
+    "DryRunReceipt": {
+      "additionalProperties": false,
+      "description": "Evidence that a dry run of a specific plan completed.\n\nCarries the plan digest so a production run can prove it is executing the\nplan that was previewed and approved, not a later edit of it.",
+      "properties": {
+        "connector_id": {
+          "title": "Connector Id",
+          "type": "string"
+        },
+        "no_change_count": {
+          "default": 0,
+          "title": "No Change Count",
+          "type": "integer"
+        },
+        "plan_digest": {
+          "title": "Plan Digest",
+          "type": "string"
+        },
+        "plan_id": {
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "previews": {
+          "items": {
+            "$ref": "#/$defs/OperationPreview"
+          },
+          "title": "Previews",
+          "type": "array"
+        },
+        "produced_at": {
+          "format": "date-time",
+          "title": "Produced At",
+          "type": "string"
+        },
+        "receipt_id": {
+          "title": "Receipt Id",
+          "type": "string"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "would_change_count": {
+          "default": 0,
+          "title": "Would Change Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "receipt_id",
+        "plan_id",
+        "plan_digest",
+        "connector_id"
+      ],
+      "title": "DryRunReceipt",
+      "type": "object"
+    },
+    "EmergencyConfirmation": {
+      "additionalProperties": false,
+      "description": "Per-site sign-off that emergency calling configuration is correct on the target.",
+      "properties": {
+        "civic_address_verified": {
+          "default": false,
+          "title": "Civic Address Verified",
+          "type": "boolean"
+        },
+        "confirmed_at": {
+          "format": "date-time",
+          "title": "Confirmed At",
+          "type": "string"
+        },
+        "confirmed_by": {
+          "title": "Confirmed By",
+          "type": "string"
+        },
+        "elin_verified": {
+          "default": false,
+          "title": "Elin Verified",
+          "type": "boolean"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "site_code": {
+          "title": "Site Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "site_code",
+        "confirmed_by"
+      ],
+      "title": "EmergencyConfirmation",
+      "type": "object"
+    },
+    "ExecutionMode": {
+      "enum": [
+        "DRY_RUN",
+        "PRODUCTION"
+      ],
+      "title": "ExecutionMode",
+      "type": "string"
+    },
+    "OperationPreview": {
+      "additionalProperties": false,
+      "description": "What a single operation would do, as produced by a dry run.",
+      "properties": {
+        "api_call": {
+          "description": "The exact call that would be issued, e.g. 'AXL:addPhone' or 'Set-CsPhoneNumberAssignment -Identity ... -PhoneNumber ...'.",
+          "title": "Api Call",
+          "type": "string"
+        },
+        "current_target_state": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "None when the object does not yet exist on the target.",
+          "title": "Current Target State"
+        },
+        "op_id": {
+          "title": "Op Id",
+          "type": "string"
+        },
+        "proposed_state": {
+          "additionalProperties": true,
+          "title": "Proposed State",
+          "type": "object"
+        },
+        "target_native_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Native Key"
+        },
+        "target_native_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Native Type"
+        },
+        "verb": {
+          "$ref": "#/$defs/WriteVerb"
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        },
+        "would_change": {
+          "default": true,
+          "description": "False means the target already matches; the real run will skip it.",
+          "title": "Would Change",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "op_id",
+        "verb",
+        "api_call"
+      ],
+      "title": "OperationPreview",
+      "type": "object"
+    },
+    "WriteVerb": {
+      "enum": [
+        "CREATE",
+        "UPDATE",
+        "DELETE",
+        "ASSIGN",
+        "UNASSIGN"
+      ],
+      "title": "WriteVerb",
+      "type": "string"
+    }
+  },
+  "$id": "https://schemas.ucm-bridge.dev/ApplyAuthorization.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Everything required to be allowed to write.\n\nConstructing one of these in PRODUCTION mode without the full evidence set\nraises. There is no bypass parameter, because a bypass parameter is how\nbypasses end up in production.",
+  "properties": {
+    "approvals": {
+      "items": {
+        "$ref": "#/$defs/Approval"
+      },
+      "title": "Approvals",
+      "type": "array"
+    },
+    "change_window": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ChangeWindow"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "correlation_id": {
+      "title": "Correlation Id",
+      "type": "string"
+    },
+    "dry_run_receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DryRunReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "emergency_confirmations": {
+      "items": {
+        "$ref": "#/$defs/EmergencyConfirmation"
+      },
+      "title": "Emergency Confirmations",
+      "type": "array"
+    },
+    "evaluated_at": {
+      "format": "date-time",
+      "title": "Evaluated At",
+      "type": "string"
+    },
+    "mode": {
+      "$ref": "#/$defs/ExecutionMode",
+      "default": "DRY_RUN"
+    },
+    "requested_by": {
+      "title": "Requested By",
+      "type": "string"
+    },
+    "window_override_by": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Window Override By"
+    },
+    "window_override_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Window Override Reason"
+    }
+  },
+  "required": [
+    "requested_by",
+    "correlation_id"
+  ],
+  "title": "ApplyAuthorization",
+  "type": "object",
+  "x-canonical-model-version": "1.0.0"
+}
