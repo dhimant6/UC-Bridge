@@ -1,0 +1,401 @@
+{
+  "name": "cucm-discovery",
+  "platform": "cisco.cucm",
+  "recorded_against": "Hand-authored from the Cisco AXL Developer Guide response shapes, 2026-07-26. NOT captured from a live cluster.",
+  "is_synthetic": true,
+  "interactions": [
+    {
+      "operation": "getCCMVersion",
+      "request": {},
+      "response": { "return": { "componentVersion": { "version": "14.0.1.13900-155" } } },
+      "notes": "Used to negotiate the AXL schema version rather than hardcoding it."
+    },
+    {
+      "operation": "listRoutePartition",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "routePartition": [
+            { "name": "PT_MUC_Internal", "description": "Munich internal DNs" },
+            { "name": "PT_LON_Internal", "description": "London internal DNs" },
+            { "name": "PT_PSTN_National", "description": "National PSTN routes" },
+            { "name": "PT_Unused_2011", "description": "Legacy - no members" }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listCss",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "css": [
+            {
+              "name": "CSS_MUC_International",
+              "description": "Munich unrestricted",
+              "members": {
+                "member": [
+                  { "routePartitionName": "PT_MUC_Internal", "index": "1" },
+                  { "routePartitionName": "PT_PSTN_National", "index": "2" }
+                ]
+              }
+            },
+            {
+              "name": "CSS_LON_National",
+              "description": "London national only",
+              "members": {
+                "member": [
+                  { "routePartitionName": "PT_LON_Internal", "index": "1" },
+                  { "routePartitionName": "PT_PSTN_National", "index": "2" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listDevicePool",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "devicePool": [
+            {
+              "name": "DP_MUC_HQ",
+              "regionName": "R_EMEA",
+              "dateTimeSettingName": "CMLocal_Berlin",
+              "srstName": "SRST_MUC",
+              "callingSearchSpaceName": "CSS_MUC_International"
+            },
+            {
+              "name": "DP_LON_BR",
+              "regionName": "R_EMEA",
+              "dateTimeSettingName": "CMLocal_London",
+              "srstName": "Disable",
+              "callingSearchSpaceName": "CSS_LON_National"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listLine",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "line": [
+            {
+              "pattern": "5101",
+              "routePartitionName": "PT_MUC_Internal",
+              "description": "Anna Mueller",
+              "alertingName": "Anna Mueller",
+              "voiceMailProfileName": "VM_Default"
+            },
+            {
+              "pattern": "5102",
+              "routePartitionName": "PT_MUC_Internal",
+              "description": "Bruno Schmidt",
+              "alertingName": "Bruno Schmidt",
+              "voiceMailProfileName": "VM_Default"
+            },
+            {
+              "pattern": "5199",
+              "routePartitionName": "PT_MUC_Internal",
+              "description": "Finance Hotline",
+              "alertingName": "Finance Hotline"
+            },
+            {
+              "pattern": "7301",
+              "routePartitionName": "PT_LON_Internal",
+              "description": "Cerys Jones",
+              "alertingName": "Cerys Jones",
+              "voiceMailProfileName": "VM_Default"
+            },
+            {
+              "pattern": "5900",
+              "routePartitionName": "PT_MUC_Internal",
+              "description": "Warehouse handset"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listUser",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "user": [
+            {
+              "userid": "amueller",
+              "firstName": "Anna",
+              "lastName": "Mueller",
+              "mailid": "anna.mueller@contoso.example",
+              "department": "Finance",
+              "status": "1",
+              "primaryExtension": { "pattern": "5101", "routePartitionName": "PT_MUC_Internal" }
+            },
+            {
+              "userid": "bschmidt",
+              "firstName": "Bruno",
+              "lastName": "Schmidt",
+              "mailid": "bruno.schmidt@contoso.example",
+              "department": "Finance",
+              "status": "1",
+              "primaryExtension": { "pattern": "5102", "routePartitionName": "PT_MUC_Internal" }
+            },
+            {
+              "userid": "cjones",
+              "firstName": "Cerys",
+              "lastName": "Jones",
+              "mailid": "cerys.jones@contoso.example",
+              "department": "Sales",
+              "status": "1",
+              "primaryExtension": { "pattern": "7301", "routePartitionName": "PT_LON_Internal" }
+            },
+            {
+              "userid": "dormant.user",
+              "firstName": "Dormant",
+              "lastName": "Account",
+              "mailid": "dormant@contoso.example",
+              "department": "Operations",
+              "status": "1",
+              "primaryExtension": { "pattern": "5900", "routePartitionName": "PT_MUC_Internal" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listPhone",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "phone": [
+            {
+              "name": "SEP001122334455",
+              "description": "Anna Mueller",
+              "model": "Cisco 8841",
+              "class": "Phone",
+              "protocol": "SIP",
+              "devicePoolName": "DP_MUC_HQ",
+              "ownerUserName": "amueller"
+            },
+            {
+              "name": "SEP00AABBCCDDEE",
+              "description": "Bruno Schmidt",
+              "model": "Cisco 7960",
+              "class": "Phone",
+              "protocol": "SCCP",
+              "devicePoolName": "DP_MUC_HQ",
+              "ownerUserName": "bschmidt"
+            },
+            {
+              "name": "CSFCJONES",
+              "description": "Cerys Jones Jabber",
+              "model": "Cisco Unified Client Services Framework",
+              "class": "Phone",
+              "protocol": "SIP",
+              "devicePoolName": "DP_LON_BR",
+              "ownerUserName": "cjones"
+            },
+            {
+              "name": "ANALOG_LIFT_MUC_1",
+              "description": "Lift phone - Munich core 1",
+              "model": "Cisco VG350 Analog Gateway",
+              "class": "Phone",
+              "protocol": "SCCP",
+              "devicePoolName": "DP_MUC_HQ"
+            },
+            {
+              "name": "ANALOG_FAX_MUC_ACCT",
+              "description": "Accounts fax line",
+              "model": "Cisco ATA 191",
+              "class": "Phone",
+              "protocol": "SIP",
+              "devicePoolName": "DP_MUC_HQ"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listDeviceProfile",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "deviceProfile": [
+            {
+              "name": "EM_Profile_Shared_Desk",
+              "description": "Hot desk profile",
+              "product": "Cisco 8841",
+              "phoneTemplateName": "Standard 8841 SIP"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listRoutePattern",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "routePattern": [
+            {
+              "pattern": "9.[2-9]XXXXXXXXX",
+              "routePartitionName": "PT_PSTN_National",
+              "description": "National dialling",
+              "blockEnable": "false",
+              "digitDiscardInstructionName": "PreDot",
+              "destination": { "routeListName": "RL_PSTN_Primary" }
+            },
+            {
+              "pattern": "9.1900XXXXXXX",
+              "routePartitionName": "PT_PSTN_National",
+              "description": "Block premium rate",
+              "blockEnable": "true"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listTransPattern",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "transPattern": [
+            {
+              "pattern": "8XXX",
+              "routePartitionName": "PT_MUC_Internal",
+              "description": "Legacy 4-digit to 5-digit uplift",
+              "calledPartyTransformationMask": "5XXX",
+              "callingSearchSpaceName": "CSS_MUC_International"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listRouteList",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "routeList": [
+            {
+              "name": "RL_PSTN_Primary",
+              "description": "Primary PSTN break-out",
+              "runOnEveryNode": "true",
+              "members": { "member": [{ "routeGroupName": "RG_PSTN_MUC", "selectionOrder": "1" }] }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listRouteGroup",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "routeGroup": [
+            {
+              "name": "RG_PSTN_MUC",
+              "distributionAlgorithm": "Circular",
+              "members": { "member": [{ "deviceName": "SIPTRUNK_CARRIER_MUC", "selectionOrder": "1" }] }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listLineGroup",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "lineGroup": [
+            {
+              "name": "LG_Finance",
+              "distributionAlgorithm": "Longest Idle Time",
+              "rnaReversionTimeOut": "10",
+              "members": {
+                "member": [
+                  { "directoryNumber": "5101", "selectionOrder": "1" },
+                  { "directoryNumber": "5102", "selectionOrder": "2" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listHuntPilot",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "huntPilot": [
+            {
+              "pattern": "5000",
+              "routePartitionName": "PT_MUC_Internal",
+              "description": "Finance hunt",
+              "huntListName": "HL_Finance",
+              "maxHuntTimer": "60"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listCallPickupGroup",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "callPickupGroup": [
+            {
+              "name": "PG_Finance",
+              "pattern": "5700",
+              "routePartitionName": "PT_MUC_Internal",
+              "description": "Finance floor pickup"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listSipTrunk",
+      "request": { "searchCriteria": { "name": "%" }, "returnedTags": {} },
+      "response": {
+        "return": {
+          "sipTrunk": [
+            {
+              "name": "SIPTRUNK_CARRIER_MUC",
+              "description": "Carrier SIP trunk Munich",
+              "devicePoolName": "DP_MUC_HQ",
+              "callingSearchSpaceName": "CSS_MUC_International",
+              "securityProfileName": "Non Secure SIP Trunk Profile",
+              "srtpAllowed": "false",
+              "significantDigits": "0",
+              "runOnEveryNode": "true",
+              "destinations": {
+                "destination": [
+                  { "addressIpv4": "10.60.1.10", "port": "5060", "sortOrder": "1" },
+                  { "addressIpv4": "10.60.1.11", "port": "5060", "sortOrder": "2" }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operation": "listPhone",
+      "request": { "searchCriteria": { "name": "THROTTLE_TEST" }, "returnedTags": {} },
+      "response": null,
+      "error": "RateLimited",
+      "error_message": "AXL service unavailable (throttled)",
+      "retry_after_seconds": 0.0,
+      "status_code": 503,
+      "notes": "Reproduces the documented 503-under-load path so retry handling is exercised."
+    }
+  ]
+}

@@ -19,6 +19,18 @@ api = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
 ]
+# Live vendor transports. Not needed for tests: every connector is exercised
+# through recorded cassettes, so the suite runs with no vendor SDK installed.
+cucm = [
+    "zeep>=4.2",
+    "requests>=2.32",
+]
+http = [
+    "httpx>=0.27",
+]
+temporal = [
+    "temporalio>=1.6",
+]
 dev = [
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
@@ -52,3 +64,9 @@ strict = true
 packages = ["ucm_bridge"]
 mypy_path = "src"
 plugins = ["pydantic.mypy"]
+
+# Optional live-transport dependencies. They are imported inside functions and
+# guarded with a clear error, so the type checker not seeing them is expected.
+[[tool.mypy.overrides]]
+module = ["zeep.*", "httpx.*", "requests.*", "temporalio.*"]
+ignore_missing_imports = true

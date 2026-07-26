@@ -68,6 +68,11 @@ from ucm_bridge.connectors.errors import (
     UnmappableEntityWrite,
     UnsupportedEntityKind,
 )
+from ucm_bridge.vendor.readiness import (
+    ConnectorReadiness,
+    assert_production_ready,
+    assess_readiness,
+)
 
 _FINAL_METHODS = ("extract", "extract_snapshot", "apply", "dry_run")
 
@@ -129,6 +134,21 @@ class Connector(ABC):
     @abstractmethod
     def capabilities(self) -> CapabilityManifest:
         """The connector's capability manifest. Must be pure and side-effect free."""
+
+    def synthetic_cassette_names(self) -> list[str]:
+        """Cassettes that were hand-authored rather than captured from a real system.
+
+        A non-empty list downgrades the connector to LAB_ONLY, which blocks
+        production writes. Connectors declare this themselves because only the
+        author knows how their fixtures were produced.
+        """
+        return []
+
+    def readiness(self) -> ConnectorReadiness:
+        """Whether this connector may be pointed at a production system."""
+        return assess_readiness(
+            self.capabilities(), synthetic_cassettes=self.synthetic_cassette_names()
+        )
 
     @abstractmethod
     async def test_connection(self) -> ConnectionTestResult:
@@ -307,7 +327,13 @@ class Connector(ABC):
                 "Source connectors are read-only by construction."
             )
 
-        # 3. Only write what the manifest claims to be able to write.
+        # 3. Never write to production from a connector whose API surface has not
+        #    been verified. A plausible-looking wrong request against a production
+        #    publisher is a real outage.
+        if authorization.mode is ExecutionMode.PRODUCTION:
+            assert_production_ready(self.readiness())
+
+        # 4. Only write what the manifest claims to be able to write.
         appliable = manifest.appliable_kinds()
         undeclared = {op.entity_kind for op in plan.operations} - appliable
         if undeclared:
@@ -327,7 +353,7 @@ class Connector(ABC):
                     f"(supported: {[v.value for v in capability.supported_verbs]})",
                 )
 
-        # 4. An UNMAPPABLE entity has no target representation; writing one is meaningless.
+        # 5. An UNMAPPABLE entity has no target representation; writing one is meaningless.
         unmappable = plan.unmappable_operations()
         if unmappable:
             raise UnmappableEntityWrite(
