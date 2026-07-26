@@ -22,8 +22,8 @@ one connector and reverse migration is the same pipeline with the ends swapped.
 
 ## Status
 
-All seven phases of the build order are implemented as a tested backend.
-**252 tests, ruff clean, mypy `--strict` clean.**
+All seven phases of the build order are implemented, plus the control plane and
+console. **274 tests, ruff clean, mypy `--strict` clean, `tsc` clean.**
 
 | Phase | Deliverable | State |
 |---|---|---|
@@ -35,7 +35,35 @@ All seven phases of the build order are implemented as a tested backend.
 | 5 | Reverse direction: ports, Direct Routing→SIP, licence reclaim | Done |
 | 6 | Slack, Genesys, split-target routing | Done |
 | 7 | Wave planner, runbooks, multi-tenancy, collector agent | Done |
-| — | FastAPI control plane and the nine React screens | **Not built** |
+| 8 | FastAPI control plane and the nine React screens | Done |
+
+## The console
+
+Nine screens, in the order the work happens. Each one is a thin view over the
+library: no business rule lives in `src/ucm_bridge/api/` or in `ui/`, because a
+guardrail re-implemented in two places eventually disagrees with itself.
+
+| # | Screen | What it is for |
+|---|---|---|
+| 1 | Estate | The estate report, plus a virtualised browser over every object, its fidelity assessment, and its transform log |
+| 2 | Assessment | 18 rules by severity. Waiving a BLOCKER is refused *in the place someone would try it* |
+| 3 | Mapping | Rules, number plan, minted numbers, and auto-map suggestions with their confidence signals |
+| 4 | Waves | Cutover waves checked against dependency clusters, with per-wave runbooks |
+| 5 | Plan & dry run | Operations in dependency order, and the exact vendor call each would make, current state beside proposed |
+| 6 | Runs | The authorization form, every refusal it can produce, progress, and rollback |
+| 7 | Validation | Eight post-migration checks, reconciliation, and the sign-off pack |
+| 8 | Audit | The hash chain, filterable, with before/after per record and a verify button |
+| 9 | Connectors | Every manifest and readiness verdict: what each connector may do, and how we know |
+
+Two things the design turns on:
+
+**A refusal is a result, not an error.** A 422 from a guardrail renders as its own
+kind of callout with the library's own message, distinct from a fault. Presenting
+a working safety rule in red teaches operators to ignore red.
+
+**A role switcher, not a hidden button.** Approver and Operator permissions are
+disjoint by design, so the console makes you change role to cross that line, and
+a disabled action says which role holds the permission it needs.
 
 ### What is honestly not finished
 
@@ -67,10 +95,17 @@ covered by the resumed run's bundle. Persisting it incrementally alongside the
 checkpoint is the obvious next change to `RunStore`. Asserted in
 `test_criterion_3_a_run_resumes_and_rolls_back`.
 
-**No UI.** The nine screens in the brief are not built, and no FastAPI surface
-exists yet. Everything they would need is in the library — estate reports,
-assessment findings, mapping profiles, wave plans, run summaries, audit search,
-connector manifests — but none of it is exposed over HTTP.
+**The console has no authentication and no persistence.** Identity comes from an
+`X-UCM-Roles` header so the role switcher can demonstrate the RBAC boundaries; a
+real deployment resolves it from an OIDC token, and the swap is confined to
+`tenant_context()` in `src/ucm_bridge/api/app.py`. State is in-process, so a
+restart loses discovery results, plans, runs, and the audit chain — storage is
+still the undecided item in ADR-0002.
+
+**The console's data is the test cassettes.** That is a limit, not a mock: every
+figure on every screen is produced by the real discovery, assessment, mapping,
+planning, execution, validation, and audit code paths. Nothing in
+`src/ucm_bridge/api/` fabricates a result the library would not produce.
 
 ## Guardrails, enforced in code
 
@@ -118,18 +153,35 @@ src/ucm_bridge/
 ├── waves/          Wave planning with dependency-cluster integrity
 ├── runbook/        Per-wave cutover runbooks with pre-agreed abort criteria
 ├── tenancy/        RBAC and tenant isolation
-└── collector/      Outbound-pull on-prem agent for air-gapped estates
+├── collector/      Outbound-pull on-prem agent for air-gapped estates
+└── api/            FastAPI control plane; serves the built console from static/
+
+ui/                 React + TypeScript console, nine screens
 ```
 
 ## Quick start
 
 ```bash
-python -m venv .venv && .venv/Scripts/activate && pip install -e ".[dev]"
+python -m venv .venv && .venv/Scripts/activate && pip install -e ".[api,dev]"
 ```
 
 ```bash
 pytest
 ```
+
+Build the console and serve everything from one process on
+<http://127.0.0.1:8000>, with OpenAPI docs at `/api/docs`:
+
+```bash
+cd ui && npm install && npm run build && cd ..
+```
+
+```bash
+python -m ucm_bridge.api
+```
+
+For UI work, run them separately — Vite proxies `/api` to port 8000 and gives you
+hot reload. See [deploy/README.md](deploy/README.md) for both, and for hosting.
 
 Regenerate the JSON Schema after changing any canonical model:
 

@@ -1,0 +1,28 @@
+# Keep the build context small and the image reproducible. Anything the
+# Dockerfile does not COPY explicitly is listed here so a stale local artefact
+# cannot change what gets built.
+.git
+.github
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+dist
+build
+*.egg-info
+.env
+*.local.json
+credentials.dev.json
+
+ui/node_modules
+# The console is built inside the image, so a local build must not leak in.
+src/ucm_bridge/api/static
+
+docs
+schemas
+# tests/cassettes IS copied; the rest of the suite is not needed at runtime.
+tests/*.py
+tests/__pycache__
