@@ -1,0 +1,128 @@
+{
+  "name": "sfb-topology",
+  "platform": "microsoft.sfb_server",
+  "recorded_against": "Hand-authored from Get-Cs* output shapes, 2026-07-26. NOT captured from a live pool.",
+  "is_synthetic": true,
+  "interactions": [
+    {
+      "operation": "Get-CsUser",
+      "request": {},
+      "response": [
+        {
+          "UserPrincipalName": "anna.mueller@contoso.example",
+          "DisplayName": "Anna Mueller",
+          "SipAddress": "sip:anna.mueller@contoso.example",
+          "Enabled": true,
+          "EnterpriseVoiceEnabled": true,
+          "LineURI": "tel:+498912345101",
+          "RegistrarPool": "muc-fe01.contoso.example",
+          "VoicePolicy": "EMEA-International",
+          "HostingProvider": "SRV:"
+        },
+        {
+          "UserPrincipalName": "bruno.schmidt@contoso.example",
+          "DisplayName": "Bruno Schmidt",
+          "SipAddress": "sip:bruno.schmidt@contoso.example",
+          "Enabled": true,
+          "EnterpriseVoiceEnabled": true,
+          "LineURI": "tel:+498912345102",
+          "RegistrarPool": "muc-fe01.contoso.example",
+          "VoicePolicy": "EMEA-National"
+        },
+        {
+          "UserPrincipalName": "cerys.jones@contoso.example",
+          "DisplayName": "Cerys Jones",
+          "SipAddress": "sip:cerys.jones@contoso.example",
+          "Enabled": true,
+          "EnterpriseVoiceEnabled": false,
+          "RegistrarPool": "lon-fe01.contoso.example"
+        }
+      ]
+    },
+    {
+      "operation": "Get-CsTeamsUpgradePolicy",
+      "request": {},
+      "response": [
+        {
+          "Identity": "anna.mueller@contoso.example",
+          "TeamsUpgradeEffectiveMode": "Islands"
+        },
+        {
+          "Identity": "bruno.schmidt@contoso.example",
+          "TeamsUpgradeEffectiveMode": "UpgradeToTeams"
+        }
+      ],
+      "notes": "Bruno is already Teams-only; the planner must skip him rather than re-migrate."
+    },
+    {
+      "operation": "Get-CsVoicePolicy",
+      "request": {},
+      "response": [
+        {
+          "Identity": "Tag:EMEA-International",
+          "Description": "EMEA unrestricted",
+          "AllowCallForwarding": true,
+          "EnableDelegation": true,
+          "EnableVoicemailEscapeTimer": true
+        },
+        {
+          "Identity": "Tag:EMEA-National",
+          "Description": "EMEA national only",
+          "AllowCallForwarding": true,
+          "EnableDelegation": false,
+          "EnableVoicemailEscapeTimer": true
+        }
+      ]
+    },
+    {
+      "operation": "Get-CsDialPlan",
+      "request": {},
+      "response": [
+        {
+          "Identity": "Tag:MUC-HQ",
+          "NormalizationRules": [
+            {
+              "Name": "MUC-4digit",
+              "Pattern": "^(\\d{4})$",
+              "Translation": "+498912345$1",
+              "Description": "Munich internal 4-digit",
+              "IsInternalExtension": true
+            },
+            {
+              "Name": "MUC-National",
+              "Pattern": "^0(\\d+)$",
+              "Translation": "+49$1",
+              "IsInternalExtension": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "operation": "Get-CsRgsWorkflow",
+      "request": {},
+      "response": [
+        {
+          "Identity": "service:ApplicationServer:muc-fe01/wf-1",
+          "Name": "Finance Helpdesk",
+          "Language": "de-DE",
+          "Active": true,
+          "LineURI": "tel:+498912345000",
+          "DefaultAction_QueueId": "queue-1"
+        }
+      ]
+    },
+    {
+      "operation": "Get-CsRgsQueue",
+      "request": {},
+      "response": [
+        {
+          "Identity": "queue-1",
+          "Name": "Finance Queue",
+          "AgentGroupIDList": ["ag-finance-1", "ag-finance-2"],
+          "TimeoutThreshold": 60
+        }
+      ]
+    }
+  ]
+}
