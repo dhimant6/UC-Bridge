@@ -1,0 +1,106 @@
+{
+  "name": "slack-workspace",
+  "platform": "slack",
+  "recorded_against": "Hand-authored from Slack Web API response shapes, 2026-07-26. NOT captured from a live workspace.",
+  "is_synthetic": true,
+  "interactions": [
+    {
+      "operation": "GET /users.list",
+      "request": { "method": "GET", "path": "/users.list", "query": {}, "body": null },
+      "response": {
+        "ok": true,
+        "members": [
+          {
+            "id": "U01",
+            "name": "amueller",
+            "deleted": false,
+            "is_bot": false,
+            "tz": "Europe/Berlin",
+            "profile": {
+              "email": "anna.mueller@contoso.example",
+              "real_name": "Anna Mueller",
+              "first_name": "Anna",
+              "last_name": "Mueller",
+              "title": "Controller"
+            }
+          },
+          {
+            "id": "U02",
+            "name": "slackbot",
+            "is_bot": true,
+            "profile": { "real_name": "Slackbot" }
+          },
+          {
+            "id": "U03",
+            "name": "cjones",
+            "deleted": false,
+            "is_bot": false,
+            "tz": "Europe/London",
+            "profile": {
+              "email": "cerys.jones@contoso.example",
+              "real_name": "Cerys Jones",
+              "first_name": "Cerys",
+              "last_name": "Jones"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "operation": "GET /usergroups.list",
+      "request": { "method": "GET", "path": "/usergroups.list", "query": {}, "body": null },
+      "response": {
+        "ok": true,
+        "usergroups": [
+          {
+            "id": "S01",
+            "handle": "finance",
+            "name": "Finance",
+            "description": "Finance department",
+            "users": ["U01"]
+          }
+        ]
+      }
+    },
+    {
+      "operation": "GET /conversations.list",
+      "request": { "method": "GET", "path": "/conversations.list", "query": {}, "body": null },
+      "response": {
+        "ok": true,
+        "channels": [
+          {
+            "id": "C01",
+            "name": "general",
+            "is_general": true,
+            "is_private": false,
+            "is_archived": false,
+            "created": 1600000000,
+            "num_members": 120,
+            "topic": { "value": "Company-wide" },
+            "purpose": { "value": "Announcements" },
+            "members": ["U01", "U03"]
+          },
+          {
+            "id": "C02",
+            "name": "finance-private",
+            "is_general": false,
+            "is_private": true,
+            "is_archived": false,
+            "created": 1610000000,
+            "num_members": 8,
+            "members": ["U01"]
+          },
+          {
+            "id": "C03",
+            "name": "vendor-shared",
+            "is_ext_shared": true,
+            "is_private": false,
+            "created": 1620000000,
+            "num_members": 15,
+            "members": []
+          }
+        ]
+      }
+    }
+  ]
+}

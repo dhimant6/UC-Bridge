@@ -1,0 +1,104 @@
+{
+  "name": "genesys-org",
+  "platform": "genesys.cloud",
+  "recorded_against": "Hand-authored from Genesys Cloud Platform API entity-envelope shapes, 2026-07-26. NOT captured from a live org.",
+  "is_synthetic": true,
+  "interactions": [
+    {
+      "operation": "GET /api/v2/routing/skills",
+      "request": { "method": "GET", "path": "/api/v2/routing/skills", "query": {}, "body": null },
+      "response": {
+        "entities": [
+          { "id": "sk-1", "name": "German", "state": "active" },
+          { "id": "sk-2", "name": "Billing", "state": "active" }
+        ]
+      }
+    },
+    {
+      "operation": "GET /api/v2/routing/queues",
+      "request": { "method": "GET", "path": "/api/v2/routing/queues", "query": {}, "body": null },
+      "response": {
+        "entities": [
+          {
+            "id": "q-1",
+            "name": "Billing DE",
+            "memberCount": 12,
+            "mediaSettings": { "call": { "serviceLevel": { "durationMs": 20000 } } }
+          }
+        ]
+      }
+    },
+    {
+      "operation": "GET /api/v2/routing/wrapupcodes",
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/routing/wrapupcodes",
+        "query": {},
+        "body": null
+      },
+      "response": {
+        "entities": [
+          { "id": "wu-1", "name": "Resolved" },
+          { "id": "wu-2", "name": "Escalated" }
+        ]
+      }
+    },
+    {
+      "operation": "GET /api/v2/users",
+      "request": { "method": "GET", "path": "/api/v2/users", "query": {}, "body": null },
+      "response": {
+        "entities": [
+          {
+            "id": "u-1",
+            "name": "Anna Mueller",
+            "email": "anna.mueller@contoso.example",
+            "team": { "name": "Billing" },
+            "skills": [
+              {
+                "name": "German",
+                "proficiency": 9,
+                "scaleMin": 1,
+                "scaleMax": 10
+              },
+              {
+                "name": "Billing",
+                "proficiency": 8,
+                "scaleMin": 1,
+                "scaleMax": 10
+              }
+            ]
+          },
+          {
+            "id": "u-2",
+            "name": "Cerys Jones",
+            "email": "cerys.jones@contoso.example",
+            "skills": [{ "name": "Billing", "proficiency": 3, "scaleMin": 0, "scaleMax": 5 }]
+          }
+        ]
+      },
+      "notes": "Anna's skills use a 1-10 source scale, which collapses onto Genesys 0-5."
+    },
+    {
+      "operation": "GET /api/v2/recording/mediaretentionpolicies",
+      "request": {
+        "method": "GET",
+        "path": "/api/v2/recording/mediaretentionpolicies",
+        "query": {},
+        "body": null
+      },
+      "response": {
+        "entities": [
+          {
+            "id": "rp-1",
+            "name": "MiFID II retention",
+            "enabled": true,
+            "actions": {
+              "retainRecording": true,
+              "retentionDuration": { "archiveRetention": { "days": 1825 } }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
