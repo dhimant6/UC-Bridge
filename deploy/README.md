@@ -22,40 +22,63 @@ compared with the 15-minute spin-downs elsewhere.
 
 ### Steps
 
-1. Create a free account at <https://huggingface.co/join>. Email only.
-2. Create a Space: **New → Space**. Set **SDK = Docker**, template **Blank**,
-   visibility **Public** (private Spaces work too, but only you can view them).
-3. Clone the Space and copy this project into it:
+**1. Create the account.** <https://huggingface.co/join> — email and password,
+no card.
+
+**2. Create a write token.** <https://huggingface.co/settings/tokens> → **Create
+new token** → type **Write** → name it `ucm-bridge-deploy` → copy it. This is
+what you paste when git asks for a password; your account password will not
+work.
+
+**3. Create the Space.** <https://huggingface.co/new-space>
+
+| Field | Value |
+|---|---|
+| Space name | `ucm-bridge-console` |
+| License | leave blank, or pick one |
+| SDK | **Docker** → **Blank** |
+| Hardware | **CPU basic · 2 vCPU · 16 GB · FREE** |
+| Visibility | **Public** (private works, but only you can open it) |
+
+**4. Add the Space as a git remote.** From this repository:
 
 ```bash
-git clone https://huggingface.co/spaces/<your-username>/ucm-bridge-console
+git remote add space https://huggingface.co/spaces/YOUR-USERNAME/ucm-bridge-console
 ```
 
-4. Copy the project files the image needs, plus the Space's own README:
+**5. Push the `space` branch to the Space's `main`.**
 
 ```bash
-cp -r Dockerfile .dockerignore pyproject.toml src ui <space-dir>/
+git push space space:main --force
+```
+
+`--force` is right the first time only: the Space was created with a starter
+commit that has no shared history with this repository, and this replaces it.
+Username is your HF username; password is the **token** from step 2.
+
+The `space` branch is `main` with `README.md` swapped for
+[`huggingface/README.md`](huggingface/README.md). Spaces reads that file's YAML
+frontmatter to decide the SDK and the port, and it has to be at the repository
+root — hence a branch rather than putting hosting frontmatter on the project's
+front page.
+
+**6. Watch it build.** The Space page shows the Docker build log. Three to four
+minutes for a cold build. When it flips to **Running**, the console is at
+`https://huggingface.co/spaces/YOUR-USERNAME/ucm-bridge-console`.
+
+### Shipping a later change
+
+```bash
+git checkout space && git merge main && cp deploy/huggingface/README.md README.md
 ```
 
 ```bash
-mkdir -p <space-dir>/tests && cp -r tests/cassettes <space-dir>/tests/
+git add README.md && git commit -m "Sync from main" && git push space space:main
 ```
 
-```bash
-cp deploy/huggingface/README.md <space-dir>/README.md
-```
-
-The frontmatter in that README is what tells Spaces to build the `Dockerfile`
-and route to port 7860. Without it the Space will not start.
-
-5. Push. The build takes three to four minutes; the log is on the Space page.
-
-```bash
-cd <space-dir> && git add -A && git commit -m "Deploy UCM-Bridge console" && git push
-```
-
-Large binary files would need Git LFS, but nothing here is large — the whole
-context is a few hundred KB of source and cassettes.
+No `--force` after the first push. The copy resolves the README either way: if
+`main` changed it the merge conflicts and this overwrites the conflict, and if it
+did not, it is a no-op.
 
 ## Alternatives, and what each costs you
 
