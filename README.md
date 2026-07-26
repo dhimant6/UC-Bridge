@@ -40,9 +40,9 @@ State is in-process and resets when the Space sleeps.
 
 ## This file
 
-This is the README for a Hugging Face Space, not for the project. Copy it to the
-Space repository's root as `README.md` — the YAML frontmatter above is what tells
-Spaces to build the `Dockerfile` and route traffic to port 7860.
+This is the README for a Hugging Face Space, not for the project. The YAML
+frontmatter above is what tells Spaces to build the `Dockerfile` and route
+traffic to port 7860; without it the Space will not start.
 
-See [`deploy/README.md`](../README.md) in the project repository for the full
-deployment walkthrough.
+It is already in place on the `space` branch, which is `main` with `README.md`
+swapped for this file. See [`deploy/README.md`](../README.md) for the walkthrough.
