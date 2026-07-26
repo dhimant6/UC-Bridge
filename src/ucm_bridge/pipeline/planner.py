@@ -187,6 +187,7 @@ def build_apply_plan(
     wave_id: str | None = None,
     verb: WriteVerb = WriteVerb.CREATE,
     include_unmappable: bool = False,
+    context_entities: Iterable[CanonicalEntity] | None = None,
 ) -> PlanBuildResult:
     """Build a dependency-ordered plan from canonical entities.
 
@@ -194,13 +195,22 @@ def build_apply_plan(
     idempotency key identifies the intended target object, and a connector that
     finds it already correct reports SKIPPED_NO_CHANGE rather than writing
     again. That is what makes re-running an identical plan a no-op.
+
+    ``context_entities`` are resolvable but never planned. They exist for the
+    common case where an operation refers to something the target already has:
+    a number is assigned to a user Teams did not create and will not create.
+    Without this the reference would be reported unresolved, and adding the user
+    to the plan would ask a connector to write an object it cannot write.
     """
-    all_entities: list[CanonicalEntity] = list(entities)
+    planned_input: list[CanonicalEntity] = list(entities)
+    context = list(context_entities or [])
+    all_entities: list[CanonicalEntity] = [*planned_input, *context]
     by_id = {e.canonical_id: e for e in all_entities}
+    context_ids = {e.canonical_id for e in context}
 
     skipped: list[str] = []
     planned: list[CanonicalEntity] = []
-    for entity in all_entities:
+    for entity in planned_input:
         if entity.fidelity.level is FidelityLevel.UNMAPPABLE and not include_unmappable:
             skipped.append(entity.canonical_id)
         else:
@@ -231,7 +241,7 @@ def build_apply_plan(
                         )
                     )
                     continue
-                if referenced_id not in planned_ids:
+                if referenced_id not in planned_ids and referenced_id not in context_ids:
                     unresolved.append(
                         UnresolvedReference(
                             canonical_id=entity.canonical_id,
@@ -260,7 +270,10 @@ def build_apply_plan(
                 resolved.append(native_key)
                 # Only depend on strictly-earlier kinds, which breaks the genuine
                 # cycles in the canonical reference graph deterministically.
-                if precedence(target.kind) < precedence(entity.kind):
+                if (
+                    referenced_id not in context_ids
+                    and precedence(target.kind) < precedence(entity.kind)
+                ):
                     depends_on.append(_op_id(target))
 
             if resolved:

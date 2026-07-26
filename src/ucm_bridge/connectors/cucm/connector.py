@@ -404,8 +404,9 @@ class CucmConnector(Connector):
             "SIPTrunk": self._map_sip_trunks,
         }
 
-        sequence = 0
         warnings: list[str] = []
+        collected: list[CanonicalEntity] = []
+
         for kind in wanted:
             mapper = mappers.get(kind)
             if mapper is None:
@@ -414,26 +415,63 @@ class CucmConnector(Connector):
             response = await self.transport.call(
                 operation, {"searchCriteria": {"name": "%"}, "returnedTags": {}}
             )
-            records = rows(response, tag)
-            entities = list(mapper(records))
+            collected.extend(mapper(rows(response, tag)))
 
-            for chunk_start in range(0, max(len(entities), 1), request.page_size):
-                chunk = entities[chunk_start : chunk_start + request.page_size]
-                if not chunk and entities:
-                    continue
-                yield ExtractBatch(
-                    run_id=request.run_id,
-                    sequence=sequence,
-                    entities=chunk,
-                    warnings=[],
-                    raw_sql_used=False,
-                    is_final=False,
-                )
-                sequence += 1
+        self._link_extension_owners(collected, warnings)
+
+        sequence = 0
+        page_size = max(1, request.page_size)
+        for chunk_start in range(0, len(collected), page_size):
+            yield ExtractBatch(
+                run_id=request.run_id,
+                sequence=sequence,
+                entities=collected[chunk_start : chunk_start + page_size],
+                warnings=[],
+                raw_sql_used=False,
+                is_final=False,
+            )
+            sequence += 1
 
         yield ExtractBatch(
             run_id=request.run_id, sequence=sequence, entities=[], warnings=warnings, is_final=True
         )
+
+    def _link_extension_owners(
+        self, entities: list[CanonicalEntity], warnings: list[str]
+    ) -> None:
+        """Back-fill ``Extension.owner_ref`` and ``Line.owner_ref`` from users.
+
+        CUCM records the association on the user (``primaryExtension``), not on
+        the line, so the link only exists once both passes have run. Without it
+        every extension looks ownerless, and a number derived from it has nobody
+        to assign to — which surfaces much later as an unhelpful "no write path"
+        error rather than as the data problem it is.
+        """
+        owner_by_extension: dict[str, str] = {}
+        for entity in entities:
+            if isinstance(entity, User) and entity.primary_extension_ref:
+                owner_by_extension[entity.primary_extension_ref] = entity.canonical_id
+
+        ownerless: list[str] = []
+        for entity in entities:
+            if isinstance(entity, Extension):
+                owner = owner_by_extension.get(entity.canonical_id)
+                if owner:
+                    entity.owner_ref = owner
+                else:
+                    ownerless.append(entity.digits)
+            elif isinstance(entity, Line) and entity.extension_ref:
+                owner = owner_by_extension.get(entity.extension_ref)
+                if owner:
+                    entity.owner_ref = owner
+
+        if ownerless:
+            warnings.append(
+                f"{len(ownerless)} extension(s) have no owning user "
+                f"({', '.join(sorted(ownerless)[:10])}). These are usually shared lines, "
+                "hunt pilots, or analogue services; each needs an explicit disposition "
+                "because there is no user to migrate them with."
+            )
 
     # -- provenance ------------------------------------------------------ #
 

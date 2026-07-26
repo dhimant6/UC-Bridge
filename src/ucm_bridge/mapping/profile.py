@@ -124,7 +124,42 @@ def apply_profile(
     by_id = {e.canonical_id: e for e in entities}
     new_numbers: list[E164Number] = []
 
-    # 1. Number normalisation.
+    # 1. Declarative rules run first.
+    #
+    # Ordering is load-bearing. Number normalisation is keyed on site_code, and
+    # several source platforms have no site field at all - CUCM derives it from
+    # a device pool or a partition naming convention, which is exactly what a
+    # rule is for. Running normalisation first would mean those rules could
+    # never influence the numbers they exist to produce.
+    for entity in entities:
+        for outcome in profile.rules.evaluate(entity):
+            rules_fired[outcome.rule_id] = rules_fired.get(outcome.rule_id, 0) + 1
+            for attribute, value in outcome.assignments.items():
+                applied = _assign(entity, attribute, value)
+                if not applied:
+                    issues.append(
+                        TransformIssue(
+                            canonical_id=entity.canonical_id,
+                            kind=entity.kind,
+                            attribute=attribute,
+                            problem="UNKNOWN_ATTRIBUTE",
+                            detail=(
+                                f"Rule {outcome.rule_id} assigns {attribute!r}, which is not a "
+                                f"field on {entity.kind}."
+                            ),
+                        )
+                    )
+                    continue
+                entity.log(
+                    TransformOperation.MAP,
+                    actor=f"profile:{profile.profile_id}",
+                    summary=f"Rule {outcome.rule_id} set {attribute}",
+                    attribute=attribute,
+                    after=value,
+                    rule_ref=outcome.rule_id,
+                )
+
+    # 2. Number normalisation, now that rules have established site_code.
     extension_inputs: list[tuple[str, str | None]] = []
     for entity in entities:
         if not isinstance(entity, Extension):
@@ -157,35 +192,6 @@ def apply_profile(
             )
 
     collisions = profile.number_plan.detect_collisions(extension_inputs)
-
-    # 2. Declarative rules.
-    for entity in entities:
-        for outcome in profile.rules.evaluate(entity):
-            rules_fired[outcome.rule_id] = rules_fired.get(outcome.rule_id, 0) + 1
-            for attribute, value in outcome.assignments.items():
-                applied = _assign(entity, attribute, value)
-                if not applied:
-                    issues.append(
-                        TransformIssue(
-                            canonical_id=entity.canonical_id,
-                            kind=entity.kind,
-                            attribute=attribute,
-                            problem="UNKNOWN_ATTRIBUTE",
-                            detail=(
-                                f"Rule {outcome.rule_id} assigns {attribute!r}, which is not a "
-                                f"field on {entity.kind}."
-                            ),
-                        )
-                    )
-                    continue
-                entity.log(
-                    TransformOperation.MAP,
-                    actor=f"profile:{profile.profile_id}",
-                    summary=f"Rule {outcome.rule_id} set {attribute}",
-                    attribute=attribute,
-                    after=value,
-                    rule_ref=outcome.rule_id,
-                )
 
     # 3. Human overrides last: a person's decision beats a rule's.
     for override in profile.overrides:

@@ -4,97 +4,128 @@ Bidirectional migration and coexistence platform for Unified Communications
 estates.
 
 Moves configuration, identity, telephony, and collaboration workloads between
-legacy on-prem platforms (Cisco CUCM/Unity, Avaya Aura, Skype for Business
-Server, Mitel, UCCX/UCCE) and cloud platforms (Microsoft Teams Phone, Slack,
-Genesys Cloud CX) — **in both directions**. Cloud-to-on-prem repatriation is a
-first-class path, not a reversal bolted on afterwards.
+legacy on-prem platforms (Cisco CUCM, Avaya Aura, Skype for Business Server) and
+cloud platforms (Microsoft Teams Phone, Slack, Genesys Cloud CX) — **in both
+directions**. Cloud-to-on-prem repatriation is a first-class path, not a
+reversal bolted on afterwards.
 
 It is not a media or signalling gateway. It carries no RTP and no SIP. It reads,
-models, transforms, validates, and writes *configuration and identity state*,
-plus a bounded set of user data where source APIs allow export.
-
-## Status: Phase 0 complete
-
-| Phase | Deliverable | State |
-|---|---|---|
-| **0** | Canonical model + JSON Schema + fidelity taxonomy | **Done** |
-| 1 | CUCM connector (Extract) + Discovery + Estate report | Not started |
-| 2 | Teams connector + Mapping workbench + dry-run engine | Not started |
-| 3 | Execution engine (Temporal) + Validation + Audit | Not started |
-| 4 | Avaya Aura and Skype for Business connectors | Not started |
-| 5 | Reverse direction, port-order modelling, licence reclaim | Not started |
-| 6 | Slack and Genesys connectors, split-target migrations | Not started |
-| 7 | Wave planner, runbooks, multi-tenancy, collector agent | Not started |
-
-## Architecture
+models, transforms, validates, and writes *configuration and identity state*.
 
 ```
 Source Connector ──Extract──▶ Canonical UC Model ──Apply──▶ Target Connector
 ```
 
 Not N×M point-to-point migrators. Every connector implements the same two
-directions against one versioned, vendor-neutral model. Adding a platform is one
-connector. **Reverse migration is the same pipeline with source and target
-swapped** — there is no separate reverse code path.
+directions against one versioned, vendor-neutral model, so adding a platform is
+one connector and reverse migration is the same pipeline with the ends swapped.
 
-See [ADR-0001](docs/adr/0001-canonical-model.md) for the reasoning and the
-fidelity trade-offs, and [ADR-0002](docs/adr/0002-technical-stack.md) for the
-stack decisions.
+## Status
 
-## What exists
+All seven phases of the build order are implemented as a tested backend.
+**252 tests, ruff clean, mypy `--strict` clean.**
 
-```
-src/ucm_bridge/
-├── canonical/          74 entity kinds across 10 domains
-│   ├── base.py         CanonicalEntity, fidelity taxonomy, deterministic digests
-│   ├── registry.py     kind -> class registry, discriminated union
-│   ├── snapshot.py     EstateSnapshot: versioned, diffable, replayable
-│   └── identity | numbering | dialplan | endpoints | callhandling
-│       | trunking | messaging | contactcenter | collaboration | policy
-├── connectors/
-│   ├── base.py         the Connector ABC (Extract / Apply / Capabilities / TestConnection)
-│   ├── capabilities.py capability manifests
-│   ├── contracts.py    plans, authorization, dry-run receipts, results
-│   ├── credentials.py  pluggable credential providers
-│   ├── errors.py       guardrail / capability / platform error taxonomy
-│   └── reference/      MemoryPBX: a worked example proving the contract
-├── pipeline/
-│   ├── planner.py      dependency-ordered plan building, reference resolution
-│   └── reconcile.py    cross-estate attribute-level reconciliation
-└── tooling/
-    └── emit_schema.py  Pydantic -> JSON Schema, with drift checking
+| Phase | Deliverable | State |
+|---|---|---|
+| 0 | Canonical model, JSON Schema, fidelity taxonomy, connector contract | Done |
+| 1 | CUCM connector, discovery, estate report, assessment engine | Done |
+| 2 | Teams connector, number normalisation, rule DSL, auto-mapping | Done |
+| 3 | Execution engine, hash-chained audit log, validation | Done |
+| 4 | Avaya Aura (incl. SAT parser) and Skype for Business connectors | Done |
+| 5 | Reverse direction: ports, Direct Routing→SIP, licence reclaim | Done |
+| 6 | Slack, Genesys, split-target routing | Done |
+| 7 | Wave planner, runbooks, multi-tenancy, collector agent | Done |
+| — | FastAPI control plane and the nine React screens | **Not built** |
 
-schemas/v1/             80 generated JSON Schema documents (committed)
-docs/
-├── fidelity-taxonomy.md
-└── adr/
-```
+### What is honestly not finished
+
+Read this before pointing anything at a production system.
+
+**No connector is cleared for production writes.** Every vendor cassette in this
+repository is hand-authored from vendor documentation, not captured from a real
+system. The readiness gate detects that and refuses production writes with
+`NotProductionReady`. This is asserted in
+`tests/test_acceptance.py::test_criterion_1_production_write_is_refused_while_cassettes_are_synthetic`.
+Clearing a connector means capturing real cassettes from a lab system and
+re-checking every API signature.
+
+**Unverified API surfaces are declared, not guessed.** Where a signature could
+not be checked against vendor documentation it carries no `verified_at` and the
+readiness gate treats the connector as `LAB_ONLY`. Known examples:
+`New-CsOnlineLisLocation` and `New-CsOnlinePSTNGateway` (Teams), and the Avaya
+System Manager REST paths.
+
+**Live transports are deliberately unimplemented.** `ZeepAxlTransport` is
+written but never exercised; `SidecarPowerShellBridge`, `SshSatSession`,
+`VaultCredentialProvider`, and `TemporalRunStore` raise `NotImplementedError`
+with a message naming what must be decided first. Guessing them would produce
+clients for servers nobody has built.
+
+**A crashed run's rollback bundle is lost.** The bundle is assembled by the run
+that performs the writes, so operations completed before a crash are not
+covered by the resumed run's bundle. Persisting it incrementally alongside the
+checkpoint is the obvious next change to `RunStore`. Asserted in
+`test_criterion_3_a_run_resumes_and_rolls_back`.
+
+**No UI.** The nine screens in the brief are not built, and no FastAPI surface
+exists yet. Everything they would need is in the library — estate reports,
+assessment findings, mapping profiles, wave plans, run summaries, audit search,
+connector manifests — but none of it is exposed over HTTP.
 
 ## Guardrails, enforced in code
 
-These are not conventions. Each is validated where it cannot be bypassed, and
-each has a test asserting the refusal.
+Not conventions. Each is validated where it cannot be bypassed, and each has a
+test asserting the refusal.
 
-| Guardrail | Where it is enforced |
+| Guardrail | Enforced by |
 |---|---|
-| Zero writes to any source system | `Connector.apply()` refuses a production write under a `READ_ONLY` credential scope |
-| Dry run is mandatory and is the default | `ApplyAuthorization` cannot be constructed in `PRODUCTION` mode without a dry-run receipt |
-| The dry run must cover *this* plan | Matched by plan digest, so editing a plan after approval invalidates the approval |
-| Two-person approval | Two distinct approvers required for production |
+| Zero writes to any source system | `apply()` refuses production writes under a `READ_ONLY` credential scope |
+| Unverified connectors cannot write to production | Readiness gate on API-surface verification and cassette provenance |
+| Dry run is mandatory and is the default | `ApplyAuthorization` cannot be constructed in `PRODUCTION` without a receipt |
+| The dry run must cover *this* plan | Matched by plan digest, so editing a plan invalidates its approval |
+| Two-person approval | Two distinct approvers; Approver and Operator permissions are disjoint |
 | Change-window enforcement | Outside the window requires an attributed override with a reason |
-| Emergency config is never migrated silently | Per-site confirmation required for every affected site; a missing one is a hard failure |
+| Emergency config is never migrated silently | Per-site confirmation required; a missing emergency location is a validation `HARD_FAIL` |
 | `UNMAPPABLE` entities are never written | Rejected by the planner and again by the connector base |
 | Nothing is `LOSSLESS` by default | Default fidelity is `DEGRADED`/unassessed; `LOSSLESS` requires evidence |
-| Connectors cannot skip the gate | `extract` and `apply` are final; overriding them raises `ContractViolation` |
+| Connectors cannot skip the gate | `extract` and `apply` are final; overriding raises `ContractViolation` |
+| Vendor calls are allow-listed | AXL operations, PowerShell cmdlets, and SAT verbs are declared and checked |
 | Secrets never reach a log | `SecretBundle` redacts under `repr`, `str`, and serialisation |
+| Audit tampering is detectable | Hash-chained append-only records; `verify()` finds edits and deletions |
+| Wave dependency integrity | A plan splitting a shared line, hunt group, or delegation is rejected |
+| Cross-tenant access | Raises rather than filtering — an empty result set hides the bug |
+
+## Layout
+
+```
+src/ucm_bridge/
+├── canonical/      74 entity kinds across 10 domains; fidelity taxonomy
+├── vendor/         Verified API declarations + cassette-driven transports
+│   ├── axl.py      Cisco AXL: endpoint, SOAPAction, namespace, throttling
+│   ├── msgraph.py  Graph endpoints + Teams cmdlet catalogue
+│   ├── sat.py      Avaya SAT terminal-form parser
+│   ├── rest.py     Shared REST transport with Retry-After and pagination
+│   └── readiness.py  Production-readiness gate
+├── connectors/     cucm · teams · avaya · sfb · slack · genesys · reference
+├── discovery/      Read-only crawl and estate report
+├── assessment/     18-rule engine; emergency gaps are unwaivable BLOCKERs
+├── mapping/        Number normalisation, rule DSL, auto-mapping, profiles
+├── pipeline/       Planner, reconciliation, split-target routing
+├── execution/      Durable resumable runs with checkpoints
+├── validation/     Eight post-migration checks beyond "the API returned 200"
+├── audit/          Hash-chained append-only log and evidence packs
+├── repatriation/   Port orders, Direct Routing→SIP, licence reclaim
+├── waves/          Wave planning with dependency-cluster integrity
+├── runbook/        Per-wave cutover runbooks with pre-agreed abort criteria
+├── tenancy/        RBAC and tenant isolation
+└── collector/      Outbound-pull on-prem agent for air-gapped estates
+```
 
 ## Quick start
 
 ```bash
 python -m venv .venv && .venv/Scripts/activate && pip install -e ".[dev]"
 ```
-
-Run the suite:
 
 ```bash
 pytest
@@ -106,45 +137,49 @@ Regenerate the JSON Schema after changing any canonical model:
 python -m ucm_bridge.tooling.emit_schema
 ```
 
-Verify the committed schema is not stale (CI does this):
+The test suite needs no vendor SDK and reaches no network: every connector is
+driven by recorded cassettes, and a call a cassette does not know fails loudly
+rather than falling through to a live system.
 
-```bash
-python -m ucm_bridge.tooling.emit_schema --check
-```
+## The acceptance criteria
 
-## The Phase 0 proof
+`tests/test_acceptance.py` has one test per §9 criterion, named for the claim it
+proves, so each can be checked rather than taken on trust.
 
-`tests/test_reference_roundtrip.py` takes a `User`, `Line`, `E164Number`, and
-`EmergencyLocation` through the full pipeline against a fake platform, and
-asserts the properties the acceptance criteria demand:
+| Criterion | Test | Result |
+|---|---|---|
+| CUCM estate discovered → assessed → mapped → dry-run → validated | `test_criterion_1_*` | Passes to dry-run; production write correctly refused (synthetic cassettes) |
+| Same pipeline inverted, losses declared up front | `test_criterion_2_*` | Passes |
+| Any run resumes and rolls back | `test_criterion_3_*` | Passes, with the crashed-bundle limitation asserted |
+| Zero writes to any source in any mode | `test_criterion_4_*` | Passes |
+| Every write audited with before/after | `test_criterion_5_*` | Passes |
+| Re-running an identical plan changes nothing | `test_criterion_6_*` | Passes |
 
-- extract → canonical → plan → dry run → apply → extract → **reconcile clean**
-- **zero writes to the source**, verified against a deep copy of its state
-- **re-running an identical plan changes nothing** (every op `SKIPPED_NO_CHANGE`)
-- a run **resumes** cleanly after a checkpoint
-- the **rollback bundle** restores the target to empty, in reverse dependency order
-- a transient failure is **retried**; a permanent one is **quarantined** while the
-  rest of the wave continues
-- writes to an eventually consistent platform are **confirmed by re-reading**
-  before being called success
+## Reading suggestions
 
-One test is worth reading on its own:
-`test_reconciliation_passes_while_fidelity_still_reports_the_shared_line_loss`.
-Reconciliation passes while a shared-line appearance was genuinely lost — which
-is exactly why the fidelity report exists alongside it. See
-[the fidelity taxonomy](docs/fidelity-taxonomy.md).
+Three places where the reasoning matters more than the code:
+
+- [docs/fidelity-taxonomy.md](docs/fidelity-taxonomy.md) — why reconciliation
+  passing and fidelity reporting a loss are both true at once, and why that
+  matters.
+- [docs/adr/0001-canonical-model.md](docs/adr/0001-canonical-model.md) — the
+  hub-and-spoke choice and what it costs.
+- [src/ucm_bridge/vendor/sat.py](src/ucm_bridge/vendor/sat.py) — a structural
+  parser for Avaya terminal forms, and the specific rule that stops a label
+  swallowing the value to its left.
 
 ## Adding a connector
 
-1. Subclass `Connector`, declare `connector_id` and `platform`.
+1. Subclass `Connector`; declare `connector_id` and `platform`.
 2. Implement `capabilities()`, `test_connection()`, `_extract_batches()`,
    `_preview_operation()`, `_execute_operation()`.
 3. Optionally implement `natural_key_for()`, `_capture_pre_state()`,
    `_invert_operation()`, `_confirm_operation()`.
-4. Declare honestly in the manifest: known gaps, required permissions, rate
-   limits, and whether the platform is eventually consistent.
-5. Record in `APISurface` when and how the API version was verified. **Do not
-   assert an unverified version** — `unverified_api_surfaces()` reports the gap.
-6. Write tests against recorded API fixtures. No connector merges without them.
+4. Declare honestly: known gaps, required permissions, rate limits, and whether
+   the platform is eventually consistent.
+5. Record in `APISurface` when and how each API version was verified. **Do not
+   assert an unverified version** — the readiness gate will keep the connector
+   out of production, which is the intended outcome.
+6. Write cassette tests. No connector merges without them.
 
 `connectors/reference/connector.py` is the worked example.

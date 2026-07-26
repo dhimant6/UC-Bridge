@@ -146,7 +146,6 @@ class TeamsConnector(Connector):
         return ["teams-tenant"] if self._cassette_is_synthetic else []
 
     def capabilities(self) -> CapabilityManifest:
-        write_verbs = [WriteVerb.CREATE, WriteVerb.UPDATE, WriteVerb.ASSIGN, WriteVerb.UNASSIGN]
         return CapabilityManifest(
             connector_id=CONNECTOR_ID,
             connector_version=CONNECTOR_VERSION,
@@ -188,10 +187,17 @@ class TeamsConnector(Connector):
                 EntityCapability(
                     entity_kind="User",
                     can_extract=True,
-                    can_apply=True,
-                    supported_verbs=write_verbs,
+                    # Teams does not provision users. They arrive from Entra ID,
+                    # by directory sync or by the customer's joiner process, and
+                    # this connector's job starts once they exist. Declaring a
+                    # write capability it does not have would let the planner
+                    # build a plan that fails at the first operation.
+                    can_apply=False,
                     api_surface="Microsoft Graph",
-                    known_gaps=["On-premises-synced users cannot have their number set here"],
+                    known_gaps=[
+                        "User provisioning is out of scope; identity comes from Entra ID",
+                        "On-premises-synced users cannot have their number set here",
+                    ],
                     required_permissions=list(GRAPH_READ_SCOPES),
                 ),
                 EntityCapability(
@@ -686,7 +692,16 @@ class TeamsConnector(Connector):
         if operation.entity_kind == "E164Number":
             identity = references.get("assigned_to_ref")
             if not identity:
-                return None
+                # Not a connector gap: Teams assigns numbers to a user or a
+                # resource account, and this number has neither. Shared lines,
+                # hunt pilots, and analogue services arrive here.
+                raise ObjectConflict(
+                    f"{attributes.get('e164')} has no assignee, so there is nothing to "
+                    "assign it to. Give it a resource account, or exclude it from the "
+                    "user-assignment plan and handle it as a service number.",
+                    connector_id=CONNECTOR_ID,
+                    native_key=str(attributes.get("e164")),
+                )
             number_type = _ACQUISITION_TO_NUMBER_TYPE.get(
                 AcquisitionModel(attributes.get("acquisition_model", "UNKNOWN")),
                 "DirectRouting",
