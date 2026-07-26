@@ -1,0 +1,191 @@
+{
+  "name": "teams-tenant",
+  "platform": "microsoft.teams",
+  "recorded_against": "Hand-authored from the Microsoft Graph v1.0 and Teams PowerShell references, 2026-07-26. NOT captured from a live tenant.",
+  "is_synthetic": true,
+  "interactions": [
+    {
+      "operation": "GET /subscribedSkus",
+      "request": { "method": "GET", "path": "/subscribedSkus", "query": {}, "body": null },
+      "response": {
+        "value": [
+          {
+            "skuId": "aaaaaaaa-1111-2222-3333-444444444444",
+            "skuPartNumber": "MCOEV",
+            "servicePlans": [{ "servicePlanName": "MCOEV", "servicePlanId": "sp-1" }]
+          },
+          {
+            "skuId": "bbbbbbbb-1111-2222-3333-444444444444",
+            "skuPartNumber": "ENTERPRISEPACK",
+            "servicePlans": [{ "servicePlanName": "TEAMS1", "servicePlanId": "sp-2" }]
+          }
+        ]
+      }
+    },
+    {
+      "operation": "GET /users",
+      "request": {
+        "method": "GET",
+        "path": "/users",
+        "query": {
+          "$select": "id,userPrincipalName,displayName,givenName,surname,mail,department,jobTitle,officeLocation,accountEnabled,usageLocation,preferredLanguage,employeeId",
+          "$top": 999
+        },
+        "body": null
+      },
+      "response": {
+        "value": [
+          {
+            "id": "u-1",
+            "userPrincipalName": "anna.mueller@contoso.example",
+            "displayName": "Anna Mueller",
+            "givenName": "Anna",
+            "surname": "Mueller",
+            "mail": "anna.mueller@contoso.example",
+            "department": "Finance",
+            "jobTitle": "Controller",
+            "officeLocation": "MUC-HQ",
+            "accountEnabled": true,
+            "usageLocation": "DE",
+            "preferredLanguage": "de-DE",
+            "assignedLicenses": [{ "skuId": "aaaaaaaa-1111-2222-3333-444444444444", "disabledPlans": [] }]
+          },
+          {
+            "id": "u-2",
+            "userPrincipalName": "cerys.jones@contoso.example",
+            "displayName": "Cerys Jones",
+            "givenName": "Cerys",
+            "surname": "Jones",
+            "mail": "cerys.jones@contoso.example",
+            "department": "Sales",
+            "officeLocation": "LON-BR",
+            "accountEnabled": true,
+            "usageLocation": "GB",
+            "assignedLicenses": []
+          }
+        ]
+      }
+    },
+    {
+      "operation": "GET /users",
+      "request": {
+        "method": "GET",
+        "path": "/users",
+        "query": { "$select": "userPrincipalName,assignedLicenses", "$top": 999 },
+        "body": null
+      },
+      "response": {
+        "value": [
+          {
+            "userPrincipalName": "anna.mueller@contoso.example",
+            "assignedLicenses": [{ "skuId": "aaaaaaaa-1111-2222-3333-444444444444", "disabledPlans": [] }]
+          },
+          { "userPrincipalName": "cerys.jones@contoso.example", "assignedLicenses": [] }
+        ]
+      }
+    },
+    {
+      "operation": "Get-CsOnlineUser",
+      "request": {},
+      "response": [
+        {
+          "UserPrincipalName": "anna.mueller@contoso.example",
+          "EnterpriseVoiceEnabled": true,
+          "LineURI": "tel:+498912345101"
+        },
+        {
+          "UserPrincipalName": "cerys.jones@contoso.example",
+          "EnterpriseVoiceEnabled": false,
+          "OnPremLineURI": "tel:+442071838751"
+        }
+      ],
+      "notes": "Cerys has an on-premises-sourced LineURI, which Set-CsPhoneNumberAssignment cannot change."
+    },
+    {
+      "operation": "Get-CsOnlineLisLocation",
+      "request": {},
+      "response": [
+        {
+          "LocationId": "7fda0c0b-6a3d-48b8-854b-3fbe9dcf6513",
+          "Description": "MUC-HQ",
+          "HouseNumber": "7",
+          "StreetName": "Leopoldstrasse",
+          "City": "Munich",
+          "PostalCode": "80802",
+          "CountryOrRegion": "DE",
+          "Location": "Floor 3",
+          "ValidationStatus": "Validated",
+          "ValidatedAt": "2026-03-14T00:00:00Z"
+        },
+        {
+          "LocationId": "951fac72-955e-4734-ab74-cc4c0f761c0b",
+          "Description": "LON-BR",
+          "HouseNumber": "22",
+          "StreetName": "Bishopsgate",
+          "City": "London",
+          "PostalCode": "EC2N 4AJ",
+          "CountryOrRegion": "GB",
+          "ValidationStatus": "NotValidated"
+        }
+      ]
+    },
+    {
+      "operation": "Get-CsPhoneNumberAssignment",
+      "request": {},
+      "response": [
+        {
+          "TelephoneNumber": "+498912345101",
+          "NumberType": "DirectRouting",
+          "AssignedPstnTargetId": "anna.mueller@contoso.example",
+          "LocationId": "7fda0c0b-6a3d-48b8-854b-3fbe9dcf6513",
+          "PstnAssignmentStatus": "UserAssigned"
+        },
+        {
+          "TelephoneNumber": "+498912345102",
+          "NumberType": "DirectRouting",
+          "AssignedPstnTargetId": null,
+          "PstnAssignmentStatus": "Unassigned"
+        }
+      ],
+      "notes": "+498912345102 has no LocationId, which the connector reports as an emergency gap."
+    },
+    {
+      "operation": "Get-CsPhoneNumberAssignment",
+      "request": { "TelephoneNumber": "+498912345102" },
+      "response": [
+        {
+          "TelephoneNumber": "+498912345102",
+          "NumberType": "DirectRouting",
+          "AssignedPstnTargetId": null,
+          "PstnAssignmentStatus": "Unassigned"
+        }
+      ]
+    },
+    {
+      "operation": "Get-CsOnlineVoiceRoutingPolicy",
+      "request": {},
+      "response": [
+        {
+          "Identity": "Tag:EMEA-International",
+          "Description": "EMEA unrestricted",
+          "OnlinePstnUsages": ["EMEA-Local", "EMEA-International"]
+        },
+        {
+          "Identity": "Global",
+          "Description": "Tenant default",
+          "OnlinePstnUsages": []
+        }
+      ]
+    },
+    {
+      "operation": "Set-CsPhoneNumberAssignment",
+      "request": {
+        "Identity": "cerys.jones@contoso.example",
+        "TelephoneNumber": "+498912345102",
+        "NumberType": "DirectRouting",
+        "LocationId": "MUC-HQ"
+      },
+      "response": null
+    }
+  ]
+}
