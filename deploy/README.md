@@ -32,6 +32,10 @@ bandwidth allowance — at which point services without one are suspended rather
 than billed — which is the behaviour of a tier that does not need a card to
 start.
 
+Nor does it need access to your repositories: see
+[without a connected account](#without-a-connected-account) for the URL-only
+route, and note that the connected route is scoped per-repository by GitHub.
+
 ### Steps
 
 **1. Create the account.** <https://render.com/register> — GitHub, GitLab,
@@ -39,9 +43,15 @@ Google, or email.
 
 **2. New → Blueprint.** <https://dashboard.render.com/blueprints>
 
-Point it at `https://github.com/dhimant6/UC-Bridge`. If you would rather not
-grant Render access to your GitHub account, use **Public Git repository** and
-paste the URL — the repository is public, so it works without the integration.
+This route goes through Render's GitHub App, so it asks to connect your account.
+**Scope it when you install:** GitHub's install screen offers *All repositories*
+or *Only select repositories* — pick the second and tick only `UC-Bridge`.
+Render then cannot see anything else you own, private or otherwise, because
+GitHub enforces the scope rather than Render honouring it. Revoke later at
+<https://github.com/settings/installations>.
+
+If you would rather Render had no link to your GitHub account at all, skip to
+[without a connected account](#without-a-connected-account).
 
 **3. Apply.** Render reads [`render.yaml`](../render.yaml), finds one web
 service on the free plan, and starts building. Nothing to fill in.
@@ -57,11 +67,31 @@ Render assigned if that one was taken.
 
 Push to `main`. Render redeploys automatically.
 
-### Without the blueprint
+### Without a connected account
 
-If you prefer to click through it: **New → Web Service** → connect the repo →
-set **Language** to **Docker** → **Instance Type: Free** → Create. The
-`Dockerfile` and `PORT` are detected.
+Render can deploy any public repository from its URL, with no Git provider
+credentials at all:
+
+**New → Web Service** → paste `https://github.com/dhimant6/UC-Bridge` into
+**Public Git Repository** → **Language: Docker** → **Instance Type: Free** →
+Create. The `Dockerfile` and `PORT` are detected, so the only thing lost versus
+the blueprint is that two dropdowns are set by hand.
+
+The real cost is deploys, not setup: **Render supports neither auto-deploy nor
+PR previews for a service connected this way**, because there are no credentials
+to hang a webhook off. You redeploy from the dashboard, or hit the service's
+**Deploy Hook** URL (Settings → Deploy Hook), which is a plain GET:
+
+```bash
+curl -X POST "https://api.render.com/deploy/srv-XXXX?key=YYYY"
+```
+
+That is also the piece to drop into a GitHub Action if you want push-to-deploy
+without granting Render anything — the secret then lives in your repository
+rather than as access to it.
+
+Blueprints are not available on this route; `render.yaml` is read through a
+connected provider.
 
 ## Hugging Face Spaces: no longer free for this
 
