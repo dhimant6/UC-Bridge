@@ -25,6 +25,15 @@ VIEWER = {"X-UCM-Roles": "VIEWER"}
 
 REFERENCE = "contoso-legacy"
 CUCM = "contoso-cucm"
+AVAYA = "contoso-avaya"
+SFB = "contoso-sfb"
+SLACK = "contoso-slack"
+GENESYS = "contoso-genesys"
+
+#: Sources whose workloads have no write path into their target. The pipeline
+#: runs to assessment and stops, and that is the correct answer rather than a
+#: failure — see ``Scenario.no_write_path``.
+EXTRACT_ONLY = [AVAYA, SFB, SLACK, GENESYS]
 
 
 @pytest.fixture
@@ -109,9 +118,34 @@ async def test_every_connector_reports_a_manifest_and_a_readiness_level(
     assert writable == {"reference-memorypbx"}
 
 
+async def test_every_connector_in_the_build_is_a_drivable_estate(
+    client: httpx.AsyncClient,
+) -> None:
+    """A connector nobody can select is a connector nobody can check."""
+    estates = (await client.get("/api/estates", headers=VIEWER)).json()
+    assert {e["estate_id"] for e in estates} == {
+        CUCM,
+        AVAYA,
+        REFERENCE,
+        SFB,
+        SLACK,
+        GENESYS,
+    }
+
+    # Every vendor connector the catalogue lists, except Teams which is the
+    # target of five of them, appears as the source of an estate.
+    connectors = (await client.get("/api/connectors", headers=VIEWER)).json()
+    catalogued = {c["manifest"]["connector_id"] for c in connectors}
+    sources = {e["source_connector_id"] for e in estates}
+    assert catalogued - sources == {"microsoft-teams"}
+    assert {e["target_connector_id"] for e in estates} == {
+        "microsoft-teams",
+        "reference-memorypbx",
+    }
+
+
 async def test_estates_expose_their_pipeline_progress(client: httpx.AsyncClient) -> None:
     estates = (await client.get("/api/estates", headers=VIEWER)).json()
-    assert {e["estate_id"] for e in estates} == {REFERENCE, CUCM}
     assert all(stage is False for e in estates for stage in e["stages"].values())
 
     await client.post(f"/api/estates/{REFERENCE}/discover", headers=PLANNER)
@@ -245,6 +279,117 @@ async def test_a_blocker_cannot_be_waived_over_http_either(
         f for f in after["findings"] if f["rule_id"] == blockers[0]["rule_id"]
     )
     assert still_open["status"] == "OPEN"
+
+
+# --------------------------------------------------------------------------- #
+# The other OEMs
+# --------------------------------------------------------------------------- #
+
+
+async def test_avaya_normalises_sat_terminal_screens_onto_e164(
+    client: httpx.AsyncClient,
+) -> None:
+    """Communication Manager has no API: this is column-parsed terminal output.
+
+    That it lands in the same canonical model as an AXL SOAP response, and runs
+    the same normalisation engine, is the whole argument for the hub-and-spoke.
+    """
+    discovered = (await client.post(f"/api/estates/{AVAYA}/discover", headers=PLANNER)).json()
+    assert discovered["report"]["extension_count"] >= 3
+    assert discovered["report"]["analogue_endpoint_count"] >= 1, (
+        "the lift phone is an analogue endpoint with no cloud equivalent"
+    )
+
+    mapping = (await client.post(f"/api/estates/{AVAYA}/map", headers=PLANNER)).json()
+    assert mapping["transform"]["numbers_created"] > 0, (
+        "the site prefix table must mint E.164 from Aura station extensions"
+    )
+    # Derived, so not lossless — the carrier has not confirmed it delivers these.
+    fidelity = mapping["transform"]["fidelity_by_kind"]["E164Number"]
+    assert fidelity["DEGRADED"] > 0
+    assert fidelity.get("LOSSLESS", 0) == 0
+
+
+async def test_avaya_stops_at_the_identity_gap_rather_than_assigning_to_nobody(
+    client: httpx.AsyncClient,
+) -> None:
+    """SAT describes stations, not people, and Teams assigns numbers to users.
+
+    The honest outcome is minted-but-unowned numbers and a stated reason, not an
+    assignment to a placeholder.
+    """
+    state = (await client.get(f"/api/estates/{AVAYA}", headers=VIEWER)).json()
+    assert "System Manager" in state["no_write_path"]
+
+    await client.post(f"/api/estates/{AVAYA}/discover", headers=PLANNER)
+    await client.post(f"/api/estates/{AVAYA}/map", headers=PLANNER)
+    plan = (await client.post(f"/api/estates/{AVAYA}/plan", json={}, headers=PLANNER)).json()
+    assert plan["operation_count"] == 0
+
+    numbers = (
+        await client.get(f"/api/estates/{AVAYA}/entities?kind=E164Number", headers=VIEWER)
+    ).json()
+    assert numbers["total"] > 0, "the numbers exist; nobody owns them"
+
+
+@pytest.mark.parametrize("estate_id", EXTRACT_ONLY)
+async def test_an_extract_only_source_discovers_and_assesses(
+    client: httpx.AsyncClient, estate_id: str
+) -> None:
+    """Extract-only sources still have to produce a real estate and assessment."""
+    discovered = await client.post(f"/api/estates/{estate_id}/discover", headers=PLANNER)
+    assert discovered.status_code == 200, discovered.text
+    assert discovered.json()["entity_count"] > 0
+
+    assessed = await client.post(f"/api/estates/{estate_id}/assess", json={}, headers=PLANNER)
+    assert assessed.status_code == 200, assessed.text
+
+    page = (await client.get(f"/api/estates/{estate_id}/entities", headers=VIEWER)).json()
+    assert page["total"] > 0
+    assert page["kinds"]
+
+
+@pytest.mark.parametrize("estate_id", EXTRACT_ONLY)
+async def test_an_empty_plan_is_explained_rather_than_just_empty(
+    client: httpx.AsyncClient, estate_id: str
+) -> None:
+    """An empty plan looks like a bug. The estate has to say why it is not one."""
+    state = (await client.get(f"/api/estates/{estate_id}", headers=VIEWER)).json()
+    assert state["no_write_path"], "an estate that cannot write must say what stops it"
+
+    await client.post(f"/api/estates/{estate_id}/discover", headers=PLANNER)
+    plan = (await client.post(f"/api/estates/{estate_id}/plan", json={}, headers=PLANNER)).json()
+    assert plan["operation_count"] == 0
+
+    # And it is empty because the target refuses the kinds, not because the
+    # source found nothing — which is the distinction the message exists to make.
+    entities = (await client.get(f"/api/estates/{estate_id}/entities", headers=VIEWER)).json()
+    assert entities["total"] > 0
+
+
+async def test_slack_declares_its_unmappable_kinds_rather_than_dropping_them(
+    client: httpx.AsyncClient,
+) -> None:
+    connectors = (await client.get("/api/connectors", headers=VIEWER)).json()
+    slack = next(c for c in connectors if c["manifest"]["connector_id"] == "slack")
+    assert len(slack["unmappable_kinds"]) >= 20, (
+        "Slack's losses are enumerated up front; that is the point of the estate"
+    )
+    assert slack["appliable_kinds"] == [], "Slack is a read surface, never a target"
+
+
+async def test_the_estates_that_can_write_are_exactly_the_two_that_should(
+    client: httpx.AsyncClient,
+) -> None:
+    estates = (await client.get("/api/estates", headers=VIEWER)).json()
+    writable = {e["estate_id"] for e in estates if e["no_write_path"] is None}
+    assert writable == {CUCM, REFERENCE}
+
+    # And every estate that cannot write says why, in a sentence a human can act
+    # on rather than a status code.
+    for estate in estates:
+        if estate["estate_id"] not in writable:
+            assert len(estate["no_write_path"] or "") > 80
 
 
 # --------------------------------------------------------------------------- #

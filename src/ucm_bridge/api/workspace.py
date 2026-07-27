@@ -13,6 +13,7 @@ thing an operator would sign.
 from __future__ import annotations
 
 import asyncio
+from collections import Counter
 from datetime import datetime
 
 from ucm_bridge.api.scenarios import ReferencePlatformScenario, Scenario, build_scenarios
@@ -68,6 +69,9 @@ class EstateSession:
         self.receipt: DryRunReceipt | None = None
         self.validation: ValidationReport | None = None
         self.target_snapshot: EstateSnapshot | None = None
+        #: Entity kinds dropped from the plan because the target cannot apply
+        #: them, counted. Empty until a plan is built.
+        self.plan_exclusions: Counter[str] = Counter()
         self.run_ids: list[str] = []
         self._sequence = 0
 
@@ -214,6 +218,20 @@ class Workspace:
         session = self.session(estate_id)
         snapshot = session.effective_snapshot or session.require_snapshot("plan build")
         planned, context = session.scenario.plan_inputs(snapshot)
+
+        # Never plan an operation the target's own manifest says it cannot
+        # perform. The planner resolves a natural key for anything it can, so a
+        # Slack user or an SfB user would otherwise become an ASSIGN against a
+        # Teams connector that applies numbers and licences only — an operation
+        # built to be refused, three screens after the point where the refusal
+        # could have been explained. They stay as resolvable context so
+        # references still land.
+        appliable = session.target.capabilities().appliable_kinds()
+        excluded = [e for e in planned if e.kind not in appliable]
+        planned = [e for e in planned if e.kind in appliable]
+        context = [*context, *excluded]
+        session.plan_exclusions = Counter(e.kind for e in excluded)
+
         result = build_apply_plan(
             planned,
             plan_id=session.next_id("plan"),

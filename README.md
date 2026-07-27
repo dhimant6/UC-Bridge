@@ -23,7 +23,7 @@ one connector and reverse migration is the same pipeline with the ends swapped.
 ## Status
 
 All seven phases of the build order are implemented, plus the control plane and
-console. **274 tests, ruff clean, mypy `--strict` clean, `tsc` clean.**
+console. **288 tests, ruff clean, mypy `--strict` clean, `tsc` clean.**
 
 | Phase | Deliverable | State |
 |---|---|---|
@@ -54,6 +54,32 @@ guardrail re-implemented in two places eventually disagrees with itself.
 | 7 | Validation | Eight post-migration checks, reconciliation, and the sign-off pack |
 | 8 | Audit | The hash chain, filterable, with before/after per record and a verify button |
 | 9 | Connectors | Every manifest and readiness verdict: what each connector may do, and how we know |
+
+### The six estates
+
+Every connector in the build is selectable, because a connector nobody can drive
+is a connector nobody can check.
+
+| Estate | Path | Reaches |
+|---|---|---|
+| Contoso CUCM | `cisco-cucm` → `microsoft-teams` | Dry run, then the readiness gate refuses the write |
+| Contoso Avaya | `avaya-aura` → `microsoft-teams` | Minted E.164, then stops: SAT has stations, not people |
+| Contoso reference | `reference-memorypbx` round trip | A real production run, validation, and rollback |
+| Contoso SfB | `microsoft-sfb-server` → `microsoft-teams` | Assessment; SfB carries no numbering objects |
+| Contoso Slack | `slack` → `microsoft-teams` | Assessment; 23 kinds are declared UNMAPPABLE |
+| Contoso Genesys | `genesys-cloud` → `microsoft-teams` | Assessment; contact centre is a split-target problem |
+
+Four of those stop before a write, and each says why in a sentence rather than
+showing an empty plan and leaving the operator to guess. That is a property of
+the connector manifests, not of the console: Aura, Skype for Business, Slack and
+Genesys are extract-only, because you migrate *off* them and because Slack and
+Genesys are read surfaces for planning a split target.
+
+The planner will not build an operation the target's manifest cannot perform.
+Without that, a Slack user resolves to a Teams natural key and becomes an ASSIGN
+against a connector that applies numbers and licences only — an operation built
+to be refused, three screens after the point where the refusal could have been
+explained.
 
 Two things the design turns on:
 

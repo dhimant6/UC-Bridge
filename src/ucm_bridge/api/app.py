@@ -187,6 +187,10 @@ class StageState(BaseModel):
     target_estate_id: str
     write_verb: str
     has_mapping_profile: bool
+    #: Why this source's workloads cannot be written to this target, when they
+    #: cannot. Present so the console explains an empty plan instead of showing
+    #: one and letting the operator assume something failed.
+    no_write_path: str | None
     stages: dict[str, bool]
     headline: str | None
     source_readiness: str
@@ -361,6 +365,7 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
             target_estate_id=scenario.target_estate_id,
             write_verb=scenario.verb.value,
             has_mapping_profile=scenario.profile() is not None,
+            no_write_path=scenario.no_write_path,
             stages=session.stages(),
             headline=session.report.headline() if session.report else None,
             source_readiness=readiness["source"].level.value,
@@ -677,7 +682,7 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
     async def build_plan(estate_id: str, body: PlanRequest, ctx: Ctx) -> dict[str, Any]:
         ctx.require(Permission.BUILD_PLAN)
         result = space.build_plan(estate_id, wave_id=body.wave_id)
-        return _plan_payload(result)
+        return _plan_payload(result, space.session(estate_id))
 
     @app.get("/api/estates/{estate_id}/plan", tags=["plan"])
     async def get_plan(estate_id: str, ctx: Ctx) -> dict[str, Any]:
@@ -685,9 +690,9 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
         session = space.session(estate_id)
         if session.plan_result is None:
             raise StageNotReady("plan build", "reading the plan")
-        return _plan_payload(session.plan_result)
+        return _plan_payload(session.plan_result, session)
 
-    def _plan_payload(result: Any) -> dict[str, Any]:
+    def _plan_payload(result: Any, session: Any) -> dict[str, Any]:
         plan = result.plan
         return {
             "plan": plan.model_dump(mode="json"),
@@ -702,6 +707,11 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
             ],
             "skipped_unmappable": list(result.skipped_unmappable),
             "is_fully_resolved": result.is_fully_resolved,
+            # Kinds the target's manifest cannot apply, so they were never
+            # planned. Reported because "nothing to do" and "this target does
+            # not take this kind of object" are very different answers.
+            "excluded_kinds": dict(sorted(session.plan_exclusions.items())),
+            "target_appliable_kinds": sorted(session.target.capabilities().appliable_kinds()),
         }
 
     @app.post("/api/estates/{estate_id}/dry-run", tags=["plan"])

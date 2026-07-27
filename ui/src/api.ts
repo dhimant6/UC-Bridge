@@ -107,6 +107,8 @@ export interface EstateState {
   target_estate_id: string;
   write_verb: string;
   has_mapping_profile: boolean;
+  /** Why this source has no write path into this target, when it has none. */
+  no_write_path: string | null;
   stages: Record<StageName, boolean>;
   headline: string | null;
   source_readiness: string;
