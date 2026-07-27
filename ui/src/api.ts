@@ -107,6 +107,8 @@ export interface EstateState {
   target_estate_id: string;
   write_verb: string;
   has_mapping_profile: boolean;
+  /** Why this source has no write path into this target, when it has none. */
+  no_write_path: string | null;
   stages: Record<StageName, boolean>;
   headline: string | null;
   source_readiness: string;
@@ -565,6 +567,77 @@ export interface ConnectorEntry {
   unverified_api_surfaces: ApiSurface[];
 }
 
+export type RuntimeMode = "DEMO" | "LIVE";
+
+export interface ModeInfo {
+  mode: RuntimeMode;
+  is_live: boolean;
+  connection_count: number;
+  live_connection_count: number;
+  persistence: string | null;
+  header_auth_allowed: boolean;
+}
+
+export interface ConnectionEntry {
+  profile: {
+    connection_id: string;
+    connector_id: string;
+    display_name: string;
+    tenant_id: string;
+    instance_id: string;
+    mode: RuntimeMode;
+    endpoint: {
+      transport: string;
+      address: string | null;
+      options: Record<string, string>;
+      verify_tls: boolean;
+    } | null;
+    credential: {
+      provider: string;
+      path: string;
+      kind: string;
+      scope: string;
+      version: string | null;
+      tenant_id: string | null;
+    } | null;
+    intended_use: string;
+    notes: string | null;
+  };
+  transport: string;
+  is_live: boolean;
+  blocked_reason: string | null;
+  can_open: boolean;
+  readiness: ConnectorEntry["readiness"] | null;
+}
+
+export interface TransportSupportRow {
+  connector_id: string;
+  transports: Array<{ kind: string; implemented: boolean }>;
+  ready_to_connect: boolean;
+}
+
+export interface ConnectionsView {
+  mode: RuntimeMode;
+  connections: ConnectionEntry[];
+  transport_support: TransportSupportRow[];
+}
+
+export interface PreflightResult {
+  connection_id: string;
+  result: {
+    connector_id: string;
+    reachable: boolean;
+    authenticated: boolean;
+    scope: string | null;
+    platform_version: string | null;
+    latency_ms: number | null;
+    granted_permissions: string[];
+    missing_permissions: string[];
+    messages: string[];
+  };
+  readiness: ConnectorEntry["readiness"];
+}
+
 export interface AuthorizationForm {
   requested_by?: string;
   approvers?: string[];
@@ -649,4 +722,10 @@ export const api = {
   evidence: (runId: string) => get<Record<string, unknown>>(`/audit/evidence/${runId}`),
 
   connectors: () => get<ConnectorEntry[]>("/connectors"),
+
+  /** Unauthenticated on purpose — the console raises a live banner before login. */
+  mode: () => get<ModeInfo>("/mode"),
+  connections: () => get<ConnectionsView>("/connections"),
+  testConnection: (connectionId: string) =>
+    post<PreflightResult>(`/connections/${connectionId}/test`),
 };

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -22,91 +23,17 @@ from ucm_bridge.vendor.sat import CassetteSatSession, SatCommandRefused
 
 CASSETTES = Path(__file__).parent / "cassettes"
 
-LIST_STATION = """\
-list station
-
-                                    STATIONS
-
-Ext        Port      Name                      Room        Cv1  Cv2  COR  COS
-5101       S00012    Mueller, Anna             3-114       12        1    1
-5102       S00013    Schmidt, Bruno            3-116       12        1    1
-5900       01A0301   Lift Phone Core 1                               7    1
-"""
-
-STATION_5101 = """\
-display station 5101                                            Page   1 of   5
-                                     STATION
-
-Extension: 5101                          Lock Messages? n               BCC: 0
-     Type: 9611                          Security Code: *                TN: 1
-     Port: S00012                        Coverage Path 1: 12            COR: 1
-     Name: Mueller, Anna                 Coverage Path 2:                COS: 1
-"""
-
-STATION_5102 = """\
-display station 5102                                            Page   1 of   5
-                                     STATION
-
-Extension: 5102                          Lock Messages? n               BCC: 0
-     Type: 2420                          Security Code: *                TN: 1
-     Port: S00013                        Coverage Path 1: 12            COR: 1
-     Name: Schmidt, Bruno                Coverage Path 2:                COS: 1
-"""
-
-STATION_5900 = """\
-display station 5900                                            Page   1 of   5
-                                     STATION
-
-Extension: 5900                          Lock Messages? n               BCC: 0
-     Type: ANALOG                        Security Code:                   TN: 1
-     Port: 01A0301                       Coverage Path 1:               COR: 7
-     Name: Lift Phone Core 1             Coverage Path 2:                COS: 1
-"""
-
-COVERAGE_12 = """\
-display coverage path 12                                        Page   1 of   1
-                              COVERAGE PATH
-
-                  Coverage Path Number: 12
-                    Hunt after Coverage? n
-
-COVERAGE CRITERIA
-
-     Station/Group Status         Inside Call        Outside Call
-              Active?                  n                  n
-                Busy?                  y                  y
-       Don't Answer?                   y                  y            Number of Rings: 3
-                 All?                  n                  n
-"""
-
-LIST_HUNT_GROUP = """\
-list hunt-group
-
-                                  HUNT GROUPS
-
-Grp No     Grp Ext    Grp Name                  Grp Type   COR  Message Center
-1          5000       Finance Hotline           ucd-mia    1    none
-"""
-# Column widths above are exact: Ext 11, Port 10, Name 26, Room 12, Cv1 5, Cv2 5,
-# COR 5. A single misplaced space shifts every later column, which is precisely
-# the failure mode the position-based parser exists to make visible.
-
-STATUS_SYSTEM = """\
-status system 1                                                 Page   1 of   1
-                              SYSTEM STATUS
-
-              System Name: CM-MUC-01
-"""
-
-SAT_SCREENS = {
-    "list station": LIST_STATION,
-    "display station 5101": STATION_5101,
-    "display station 5102": STATION_5102,
-    "display station 5900": STATION_5900,
-    "display coverage path 12": COVERAGE_12,
-    "list hunt-group": LIST_HUNT_GROUP,
-    "status system 1": STATUS_SYSTEM,
-}
+# The SAT fixtures live in tests/cassettes/avaya-cm-sat.json so the console can
+# replay the same screens the parser is proven against, rather than keeping a
+# second copy that could drift.
+#
+# Their column widths are exact - Ext 11, Port 10, Name 26, Room 12, Cv1 5,
+# Cv2 5, COR 5 - and a single misplaced space shifts every later column, which
+# is precisely the failure mode the position-based parser exists to make
+# visible. Edit them in the JSON, not by retyping.
+SAT_SCREENS: dict[str, str] = json.loads(
+    (CASSETTES / "avaya-cm-sat.json").read_text(encoding="utf-8")
+)["screens"]
 
 
 @pytest.fixture

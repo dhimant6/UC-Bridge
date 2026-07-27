@@ -233,6 +233,33 @@ h3 {
   flex-wrap: wrap;
 }
 
+/* Live mode has to be impossible to miss and impossible to dismiss: this
+   process can reach a real PBX, and nobody should learn that from a tooltip. */
+.live-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 7px 18px;
+  background: color-mix(in srgb, var(--high) 16%, var(--bg-raised));
+  border-bottom: 1px solid color-mix(in srgb, var(--high) 45%, transparent);
+  color: var(--text);
+  font-size: 12px;
+}
+.live-bar strong {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  padding: 1px 8px;
+  border-radius: 20px;
+  background: var(--high);
+  color: #1a0e02;
+  flex: none;
+}
+.live-bar__warn {
+  color: var(--blocker);
+  font-weight: 600;
+}
+
 .content {
   padding: 18px;
   overflow-y: auto;

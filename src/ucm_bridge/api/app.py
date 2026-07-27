@@ -23,6 +23,7 @@ renders those refusals as first-class results rather than as failures.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -37,11 +38,23 @@ from starlette.responses import Response
 
 from ucm_bridge import __version__
 from ucm_bridge.api.catalogue import ConnectorCatalogue
+from ucm_bridge.api.connections import (
+    ConnectionProfile,
+    ConnectionRegistry,
+    RuntimeMode,
+    TransportNotImplemented,
+    build_broker,
+    current_mode,
+    describe_live_readiness,
+    load_registry,
+    state_dir,
+)
+from ucm_bridge.api.factory import build_live_connector, unimplemented_reason
 from ucm_bridge.api.workspace import StageNotReady, Workspace, production_authorization
 from ucm_bridge.assessment import Finding, render_assessment_markdown
 from ucm_bridge.audit import AuditAction, TamperDetected, evidence_pack
 from ucm_bridge.canonical.base import CanonicalEntity
-from ucm_bridge.connectors.errors import GuardrailViolation
+from ucm_bridge.connectors.errors import CredentialError, GuardrailViolation
 from ucm_bridge.discovery import render_estate_report_markdown
 from ucm_bridge.execution import RunSummary
 from ucm_bridge.mapping import mapping_summary, suggest_all
@@ -187,6 +200,10 @@ class StageState(BaseModel):
     target_estate_id: str
     write_verb: str
     has_mapping_profile: bool
+    #: Why this source's workloads cannot be written to this target, when they
+    #: cannot. Present so the console explains an empty plan instead of showing
+    #: one and letting the operator assume something failed.
+    no_write_path: str | None
     stages: dict[str, bool]
     headline: str | None
     source_readiness: str
@@ -236,20 +253,47 @@ def _problem(status: int, kind: str, message: str, **extra: Any) -> JSONResponse
 # --------------------------------------------------------------------------- #
 
 
+#: Opt-in for header identity in live mode. Only for a deployment where the
+#: process is already behind an authenticating proxy that sets these headers and
+#: strips any the client sent.
+ALLOW_HEADER_AUTH_ENV = "UCM_BRIDGE_ALLOW_HEADER_AUTH"
+
+
+class HeaderAuthRefused(Exception):
+    """Header identity was used in live mode without the explicit opt-in."""
+
+
 def tenant_context(
     x_ucm_roles: Annotated[str | None, Header()] = None,
     x_ucm_principal: Annotated[str | None, Header()] = None,
 ) -> TenantContext:
-    """Demo identity, taken from headers so the UI can switch roles.
+    """Identity from headers, so the console can demonstrate the RBAC boundaries.
+
+    **This is not authentication.** Anyone who can reach the port can claim any
+    role with a curl flag. That is acceptable for a demo with no credentials and
+    no private data behind it, and unacceptable the moment the process can write
+    to a real PBX — so in LIVE mode it is refused outright unless
+    ``UCM_BRIDGE_ALLOW_HEADER_AUTH`` is explicitly set, which is the escape hatch
+    for a deployment already sitting behind an authenticating proxy that sets
+    these headers and strips whatever the client sent.
 
     A real deployment resolves this from an OIDC token. Keeping it in one
-    dependency means swapping it later touches exactly this function.
+    dependency means the swap touches exactly this function.
 
     It lives at module scope rather than inside :func:`create_app` because this
     module uses postponed annotations, and FastAPI resolves a route's type hints
     against module globals — a closure-local alias is invisible to it and every
     ``ctx`` parameter would silently become a query parameter.
     """
+    if current_mode() is RuntimeMode.LIVE and not os.environ.get(ALLOW_HEADER_AUTH_ENV):
+        raise HeaderAuthRefused(
+            "This process is in LIVE mode, where header identity is refused: an "
+            "X-UCM-Roles header is a role anyone with network access can grant "
+            "themselves. Put the process behind an authenticating proxy and set "
+            f"{ALLOW_HEADER_AUTH_ENV}=1 to acknowledge that, or wire real OIDC into "
+            "tenant_context()."
+        )
+
     names = [part.strip() for part in (x_ucm_roles or "").split(",") if part.strip()]
     try:
         roles = frozenset(Role(name.upper()) for name in names) or frozenset(DEFAULT_ROLES)
@@ -264,13 +308,30 @@ def tenant_context(
 
 Ctx = Annotated[TenantContext, Depends(tenant_context)]
 
+#: Origins allowed in live mode. Same-origin only unless told otherwise, because
+#: the console is served by this process anyway.
+ALLOWED_ORIGINS_ENV = "UCM_BRIDGE_ALLOWED_ORIGINS"
+
+
+def _allowed_origins(live: bool) -> list[str]:
+    configured = [o.strip() for o in (os.environ.get(ALLOWED_ORIGINS_ENV) or "").split(",")]
+    explicit = [o for o in configured if o]
+    if explicit:
+        return explicit
+    return [] if live else ["*"]
+
 
 # --------------------------------------------------------------------------- #
 # App
 # --------------------------------------------------------------------------- #
 
 
-def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = None) -> FastAPI:
+def create_app(
+    *,
+    workspace: Workspace | None = None,
+    static_dir: Path | None = None,
+    registry: ConnectionRegistry | None = None,
+) -> FastAPI:
     app = FastAPI(
         title="UCM-Bridge control plane",
         version=__version__,
@@ -282,12 +343,19 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
         redoc_url="/api/redoc",
         openapi_url="/api/openapi.json",
     )
-    space = workspace or Workspace()
+    space = workspace or Workspace(state_dir=state_dir())
     catalogue = ConnectorCatalogue()
+    registry = registry if registry is not None else load_registry()
+    broker = build_broker()
+    live = current_mode() is RuntimeMode.LIVE
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        # Wide open is fine for a demo carrying no credentials and no private
+        # data, and it lets the Vite dev server work against a deployed backend.
+        # Neither is true in live mode, where a permissive CORS policy would let
+        # any page a browser loads drive a control plane that can write to a PBX.
+        allow_origins=_allowed_origins(live),
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -310,6 +378,20 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
     async def _guardrail(_request: Request, exc: GuardrailViolation) -> JSONResponse:
         # 422, not 500. A guardrail refusing a write is the system working.
         return _problem(422, type(exc).__name__, str(exc), guardrail=True)
+
+    @app.exception_handler(HeaderAuthRefused)
+    async def _header_auth(_request: Request, exc: HeaderAuthRefused) -> JSONResponse:
+        return _problem(401, "HeaderAuthRefused", str(exc), guardrail=True)
+
+    @app.exception_handler(TransportNotImplemented)
+    async def _no_transport(_request: Request, exc: TransportNotImplemented) -> JSONResponse:
+        # 501, not 500: the request was understood and the server genuinely does
+        # not implement it yet. The message names what would have to be built.
+        return _problem(501, "TransportNotImplemented", str(exc))
+
+    @app.exception_handler(CredentialError)
+    async def _credentials(_request: Request, exc: CredentialError) -> JSONResponse:
+        return _problem(502, "CredentialError", str(exc))
 
     @app.exception_handler(BlockerCannotBeWaived)
     async def _blocker(_request: Request, exc: BlockerCannotBeWaived) -> JSONResponse:
@@ -361,6 +443,7 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
             target_estate_id=scenario.target_estate_id,
             write_verb=scenario.verb.value,
             has_mapping_profile=scenario.profile() is not None,
+            no_write_path=scenario.no_write_path,
             stages=session.stages(),
             headline=session.report.headline() if session.report else None,
             source_readiness=readiness["source"].level.value,
@@ -677,7 +760,7 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
     async def build_plan(estate_id: str, body: PlanRequest, ctx: Ctx) -> dict[str, Any]:
         ctx.require(Permission.BUILD_PLAN)
         result = space.build_plan(estate_id, wave_id=body.wave_id)
-        return _plan_payload(result)
+        return _plan_payload(result, space.session(estate_id))
 
     @app.get("/api/estates/{estate_id}/plan", tags=["plan"])
     async def get_plan(estate_id: str, ctx: Ctx) -> dict[str, Any]:
@@ -685,9 +768,9 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
         session = space.session(estate_id)
         if session.plan_result is None:
             raise StageNotReady("plan build", "reading the plan")
-        return _plan_payload(session.plan_result)
+        return _plan_payload(session.plan_result, session)
 
-    def _plan_payload(result: Any) -> dict[str, Any]:
+    def _plan_payload(result: Any, session: Any) -> dict[str, Any]:
         plan = result.plan
         return {
             "plan": plan.model_dump(mode="json"),
@@ -702,6 +785,11 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
             ],
             "skipped_unmappable": list(result.skipped_unmappable),
             "is_fully_resolved": result.is_fully_resolved,
+            # Kinds the target's manifest cannot apply, so they were never
+            # planned. Reported because "nothing to do" and "this target does
+            # not take this kind of object" are very different answers.
+            "excluded_kinds": dict(sorted(session.plan_exclusions.items())),
+            "target_appliable_kinds": sorted(session.target.capabilities().appliable_kinds()),
         }
 
     @app.post("/api/estates/{estate_id}/dry-run", tags=["plan"])
@@ -887,6 +975,76 @@ def create_app(*, workspace: Workspace | None = None, static_dir: Path | None = 
     async def evidence(run_id: str, ctx: Ctx) -> dict[str, Any]:
         ctx.require(Permission.READ_AUDIT)
         return evidence_pack(space.audit, run_id=run_id)
+
+    # -- 10. connections and mode ----------------------------------------- #
+
+    @app.get("/api/mode", tags=["connections"])
+    async def mode() -> dict[str, Any]:
+        """What this process is, before anyone asks it to do anything.
+
+        Unauthenticated on purpose: the console has to be able to put a live
+        banner up before it knows who is looking, and refusing to say whether a
+        process can reach production helps nobody.
+        """
+        mode_now = current_mode()
+        persisted = state_dir()
+        return {
+            "mode": mode_now.value,
+            "is_live": mode_now is RuntimeMode.LIVE,
+            "connection_count": len(registry.profiles),
+            "live_connection_count": len(registry.live_profiles),
+            "persistence": str(persisted) if persisted else None,
+            "header_auth_allowed": bool(os.environ.get(ALLOW_HEADER_AUTH_ENV)),
+        }
+
+    def _connection_payload(profile: ConnectionProfile) -> dict[str, Any]:
+        blocked = unimplemented_reason(profile)
+        return {
+            "profile": profile.model_dump(mode="json"),
+            "transport": profile.transport_kind().value,
+            "is_live": profile.is_live,
+            "blocked_reason": blocked,
+            "can_open": profile.is_live and blocked is None,
+            # The readiness gate is orthogonal: a connection can be openable and
+            # still refused a production write, and that is the normal case.
+            "readiness": (
+                catalogue.readiness(profile.connector_id).model_dump(mode="json")
+                if profile.connector_id in catalogue.connector_ids
+                else None
+            ),
+        }
+
+    @app.get("/api/connections", tags=["connections"])
+    async def connections(ctx: Ctx) -> dict[str, Any]:
+        ctx.require(Permission.READ_ESTATE)
+        return {
+            "mode": current_mode().value,
+            "connections": [_connection_payload(p) for p in registry.profiles],
+            "transport_support": describe_live_readiness(),
+        }
+
+    @app.post("/api/connections/{connection_id}/test", tags=["connections"])
+    async def test_connection(connection_id: str, ctx: Ctx) -> dict[str, Any]:
+        """Open the connection and ask the platform who we are.
+
+        ``test_connection`` is required by the connector contract to be
+        read-only, so this is safe to press against production. It is the
+        difference between "the config looks right" and "the credential works
+        and carries the permissions we need".
+        """
+        ctx.require(Permission.MANAGE_CONNECTORS)
+        profile = registry.get(connection_id)
+        if not profile.is_live:
+            raise StageNotReady(
+                "a LIVE connection profile", "a preflight — a demo profile has nothing to reach"
+            )
+        connector = await build_live_connector(profile, broker)
+        result = await connector.test_connection()
+        return {
+            "connection_id": connection_id,
+            "result": result.model_dump(mode="json"),
+            "readiness": connector.readiness().model_dump(mode="json"),
+        }
 
     # -- 9. connectors ---------------------------------------------------- #
 

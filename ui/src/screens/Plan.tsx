@@ -28,7 +28,7 @@ import type { Column } from "../components/VirtualTable";
 import { useApp, useGate } from "../state";
 
 export function PlanScreen() {
-  const { estateId, refresh } = useApp();
+  const { estateId, estate, refresh } = useApp();
   const build = useGate("BUILD_PLAN");
   const dry = useGate("RUN_DRY_RUN");
   const plan = useAsync(() => api.plan(estateId), [estateId]);
@@ -97,6 +97,17 @@ export function PlanScreen() {
         into the target's own natural key at plan time. References that cannot be carried are
         reported here rather than written as dangling pointers.
       </PageHead>
+
+      {estate?.no_write_path && (
+        <Callout tone="refused" title="This estate has no write path into its target">
+          {estate.no_write_path}
+          <div className="faint" style={{ marginTop: 6 }}>
+            The plan below will be empty, and that is the correct answer rather than a failure.
+            Discovery, assessment, mapping and the fidelity report are where this pairing's value
+            is — they say what the move costs before anyone schedules it.
+          </div>
+        </Callout>
+      )}
 
       <Panel
         title="Build the plan"
