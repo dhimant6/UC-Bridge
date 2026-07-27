@@ -6,9 +6,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { api, getRoles, setRoles } from "./api";
-import type { EstateState, Role, SessionInfo } from "./api";
+import type { EstateState, ModeInfo, Role, SessionInfo } from "./api";
 
 interface AppValue {
+  /** DEMO or LIVE. Fetched unauthenticated so the banner can precede login. */
+  mode: ModeInfo | undefined;
   estates: EstateState[];
   estate: EstateState | undefined;
   estateId: string;
@@ -43,6 +45,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return initial;
   });
   const [estates, setEstates] = useState<EstateState[]>([]);
+  const [mode, setMode] = useState<ModeInfo | undefined>(undefined);
   const [session, setSession] = useState<SessionInfo | undefined>(undefined);
   const [estateId, setEstateId] = useState<string>(() => localStorage.getItem(ESTATE_KEY) ?? "");
   const [nonce, setNonce] = useState(0);
@@ -50,6 +53,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<unknown>(undefined);
 
   const refresh = useCallback(() => setNonce((n) => n + 1), []);
+
+  // The mode is fetched separately and never blocks: it is unauthenticated on
+  // purpose, so a live banner can go up even when the rest 401s.
+  useEffect(() => {
+    let alive = true;
+    api
+      .mode()
+      .then((info) => {
+        if (alive) setMode(info);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [nonce]);
 
   useEffect(() => {
     let live = true;
@@ -91,6 +109,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const permissions = new Set(session?.permissions ?? []);
     const catalogue = session?.role_catalogue ?? ({} as Record<Role, string[]>);
     return {
+      mode,
       estates,
       estate: estates.find((e) => e.estate_id === estateId),
       estateId,
@@ -107,7 +126,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ready,
       error,
     };
-  }, [estates, estateId, selectEstate, session, changeRoles, refresh, ready, error, roles]);
+  }, [mode, estates, estateId, selectEstate, session, changeRoles, refresh, ready, error, roles]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

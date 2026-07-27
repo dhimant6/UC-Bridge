@@ -11,6 +11,7 @@ import { RunsScreen } from "./screens/Runs";
 import { ValidationScreen } from "./screens/Validation";
 import { AuditScreen } from "./screens/Audit";
 import { ConnectorsScreen } from "./screens/Connectors";
+import { ConnectionsScreen } from "./screens/Connections";
 
 /** The nine screens, keyed by path. Order here is the order of the work. */
 const SCREEN_COMPONENTS: Record<string, () => React.ReactElement> = {
@@ -23,6 +24,7 @@ const SCREEN_COMPONENTS: Record<string, () => React.ReactElement> = {
   "/validation": ValidationScreen,
   "/audit": AuditScreen,
   "/connectors": ConnectorsScreen,
+  "/connections": ConnectionsScreen,
 };
 
 function Screen() {

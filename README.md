@@ -23,7 +23,7 @@ one connector and reverse migration is the same pipeline with the ends swapped.
 ## Status
 
 All seven phases of the build order are implemented, plus the control plane and
-console. **288 tests, ruff clean, mypy `--strict` clean, `tsc` clean.**
+console. **315 tests, ruff clean, mypy `--strict` clean, `tsc` clean.**
 
 | Phase | Deliverable | State |
 |---|---|---|
@@ -35,11 +35,12 @@ console. **288 tests, ruff clean, mypy `--strict` clean, `tsc` clean.**
 | 5 | Reverse direction: ports, Direct Routing→SIP, licence reclaim | Done |
 | 6 | Slack, Genesys, split-target routing | Done |
 | 7 | Wave planner, runbooks, multi-tenancy, collector agent | Done |
-| 8 | FastAPI control plane and the nine React screens | Done |
+| 8 | FastAPI control plane and the console | Done |
+| 9 | Connection profiles, the demo/live switch, preflight and persistence | Done |
 
 ## The console
 
-Nine screens, in the order the work happens. Each one is a thin view over the
+Ten screens, in the order the work happens. Each one is a thin view over the
 library: no business rule lives in `src/ucm_bridge/api/` or in `ui/`, because a
 guardrail re-implemented in two places eventually disagrees with itself.
 
@@ -54,6 +55,7 @@ guardrail re-implemented in two places eventually disagrees with itself.
 | 7 | Validation | Eight post-migration checks, reconciliation, and the sign-off pack |
 | 8 | Audit | The hash chain, filterable, with before/after per record and a verify button |
 | 9 | Connectors | Every manifest and readiness verdict: what each connector may do, and how we know |
+| 10 | Connections | Which real system each connector points at, whether it can be opened, and a read-only preflight |
 
 ### The six estates
 
@@ -90,6 +92,30 @@ a working safety rule in red teaches operators to ignore red.
 **A role switcher, not a hidden button.** Approver and Operator permissions are
 disjoint by design, so the console makes you change role to cross that line, and
 a disabled action says which role holds the permission it needs.
+
+### Demo and live
+
+The console runs in **DEMO** mode by default: cassettes, no network, no
+credentials. `UCM_BRIDGE_MODE=LIVE` plus a connection file points connectors at
+real systems — see [deploy/going-live.md](deploy/going-live.md).
+
+**The mode selects transports. It does not touch the readiness gate.** Live mode
+makes a connector *eligible* to be production-ready; verified API surfaces and
+non-synthetic cassettes are still what make it *allowed*, evaluated identically
+in both modes. What live mode does change is that a connector reading a real
+system reports no synthetic cassettes, because it has none — and that is what
+lifts `LAB_ONLY`, on its own, with no flag for it.
+
+Live mode also refuses header identity (401) unless explicitly acknowledged,
+because `X-UCM-Roles` is a role anyone who can reach the port can grant
+themselves, and tightens CORS to same-origin.
+
+Two live transports exist today: REST (`HttpxRestTransport`, covering Graph,
+Slack and Genesys) and AXL SOAP (`ZeepAxlTransport`, written but never executed
+against a real cluster). The PowerShell sidecar and the SSH SAT session raise
+`NotImplementedError` naming what must be decided first. Since every Teams write
+is a cmdlet, **the sidecar is the critical path**: until it exists nothing
+migrates into Teams, however many sources are connected.
 
 ### What is honestly not finished
 

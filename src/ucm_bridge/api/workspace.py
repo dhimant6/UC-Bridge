@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 from datetime import datetime
+from pathlib import Path
 
 from ucm_bridge.api.scenarios import ReferencePlatformScenario, Scenario, build_scenarios
 from ucm_bridge.assessment import AssessmentReport, RuleContext, assess
@@ -34,6 +35,7 @@ from ucm_bridge.connectors.contracts import (
 )
 from ucm_bridge.discovery import DiscoveryService, EstateReport
 from ucm_bridge.execution import ExecutionEngine, InMemoryRunStore, RunState, RunSummary
+from ucm_bridge.execution.store import JsonFileRunStore, RunStore
 from ucm_bridge.mapping import TransformResult, apply_profile
 from ucm_bridge.pipeline.planner import PlanBuildResult, build_apply_plan
 from ucm_bridge.validation import ValidationReport, ValidationService
@@ -127,9 +129,21 @@ class EstateSession:
 class Workspace:
     """The control plane's whole world: sessions, audit chain, and run store."""
 
-    def __init__(self, scenarios: list[Scenario] | None = None) -> None:
-        self.audit = AuditLog()
-        self.runs = InMemoryRunStore()
+    def __init__(
+        self,
+        scenarios: list[Scenario] | None = None,
+        *,
+        state_dir: Path | None = None,
+    ) -> None:
+        # In-process state is fine for a demo and unacceptable for real writes:
+        # a restart mid-run would lose the audit chain covering operations that
+        # have already happened on a customer's PBX. Point UCM_BRIDGE_STATE_DIR
+        # at a durable volume and both the chain and the run checkpoints survive.
+        self.state_dir = state_dir
+        self.audit = AuditLog(path=(state_dir / "audit.jsonl") if state_dir else None)
+        self.runs: RunStore = (
+            JsonFileRunStore(state_dir / "runs") if state_dir else InMemoryRunStore()
+        )
         self.sessions: dict[str, EstateSession] = {
             scenario.estate_id: EstateSession(scenario)
             for scenario in (scenarios if scenarios is not None else build_scenarios())

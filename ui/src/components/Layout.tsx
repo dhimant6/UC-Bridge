@@ -23,6 +23,7 @@ export const SCREENS: Array<{
   { path: "/validation", label: "Validation", stage: "validation", group: "Execute" },
   { path: "/audit", label: "Audit", group: "Evidence" },
   { path: "/connectors", label: "Connectors", group: "Evidence" },
+  { path: "/connections", label: "Connections", group: "Evidence" },
 ];
 
 const RAIL: Array<{ stage: StageName; label: string }> = [
@@ -48,8 +49,18 @@ function useTheme(): [string, () => void] {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { estates, estate, estateId, selectEstate, session, roles, changeRoles, ready, error } =
-    useApp();
+  const {
+    mode,
+    estates,
+    estate,
+    estateId,
+    selectEstate,
+    session,
+    roles,
+    changeRoles,
+    ready,
+    error,
+  } = useApp();
   const [theme, toggleTheme] = useTheme();
 
   const stages = estate?.stages;
@@ -97,6 +108,20 @@ export function Layout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="main">
+        {mode?.is_live && (
+          <div className="live-bar" role="status">
+            <strong>LIVE</strong>
+            <span>
+              Connectors build real transports against real systems. Writes are still governed by
+              the readiness gate, which is unchanged by the mode.
+            </span>
+            {mode.persistence === null && (
+              <span className="live-bar__warn">
+                No state directory configured — a restart loses the audit chain.
+              </span>
+            )}
+          </div>
+        )}
         <header className="topbar">
           <select
             value={estateId}

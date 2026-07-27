@@ -1,0 +1,104 @@
+{
+  "profiles": [
+    {
+      "connection_id": "cucm-muc-lab",
+      "connector_id": "cisco-cucm",
+      "display_name": "CUCM — Munich lab cluster",
+      "tenant_id": "contoso",
+      "instance_id": "cluster-muc-1",
+      "mode": "LIVE",
+      "endpoint": {
+        "transport": "AXL_SOAP",
+        "address": "cucm-pub.lab.contoso.example",
+        "options": {
+          "schema_version": "14.0",
+          "wsdl_path": "/opt/axl/14.0/AXLAPI.wsdl"
+        },
+        "verify_tls": true
+      },
+      "credential": {
+        "provider": "env",
+        "path": "cucm/axl-ro",
+        "kind": "USERNAME_PASSWORD",
+        "scope": "READ_ONLY"
+      },
+      "intended_use": "READ_ONLY",
+      "notes": "Start read-only. The AXL WSDL is per release and is downloaded from Cisco Unified CM Administration -> Application -> Plugins; the transport reads it rather than assuming field names."
+    },
+    {
+      "connection_id": "genesys-emea",
+      "connector_id": "genesys-cloud",
+      "display_name": "Genesys Cloud CX — EMEA org",
+      "tenant_id": "contoso",
+      "instance_id": "contoso-genesys",
+      "mode": "LIVE",
+      "endpoint": {
+        "transport": "REST",
+        "address": "https://api.mypurecloud.de",
+        "options": {},
+        "verify_tls": true
+      },
+      "credential": {
+        "provider": "env",
+        "path": "genesys/oauth",
+        "kind": "CLIENT_CREDENTIALS",
+        "scope": "READ_ONLY"
+      },
+      "intended_use": "READ_ONLY",
+      "notes": "Regional: the address must match the org's region, not the us-east default."
+    },
+    {
+      "connection_id": "slack-contoso",
+      "connector_id": "slack",
+      "display_name": "Slack — Contoso workspace",
+      "tenant_id": "contoso",
+      "instance_id": "contoso-workspace",
+      "mode": "LIVE",
+      "endpoint": {
+        "transport": "REST",
+        "address": "https://slack.com/api",
+        "options": {},
+        "verify_tls": true
+      },
+      "credential": {
+        "provider": "env",
+        "path": "slack/bot-token",
+        "kind": "API_TOKEN",
+        "scope": "READ_ONLY"
+      },
+      "intended_use": "READ_ONLY",
+      "notes": "Slack stays UNVERIFIED while the Discovery API surface carries no verification record. Extraction over the Web API still works."
+    },
+    {
+      "connection_id": "teams-contoso",
+      "connector_id": "microsoft-teams",
+      "display_name": "Microsoft Teams — Contoso tenant",
+      "tenant_id": "contoso",
+      "instance_id": "contoso.onmicrosoft.com",
+      "mode": "LIVE",
+      "endpoint": {
+        "transport": "POWERSHELL",
+        "address": "http://ps-sidecar:8080",
+        "options": {},
+        "verify_tls": true
+      },
+      "credential": {
+        "provider": "env",
+        "path": "teams/app",
+        "kind": "CLIENT_CREDENTIALS",
+        "scope": "READ_WRITE"
+      },
+      "intended_use": "READ_WRITE",
+      "notes": "Will refuse to open: SidecarPowerShellBridge is unimplemented. Every Teams write is a cmdlet, so this is the blocker on migrating anything into Teams. Kept here so the Connections screen shows it."
+    },
+    {
+      "connection_id": "cucm-muc-demo",
+      "connector_id": "cisco-cucm",
+      "display_name": "CUCM — recorded cassette",
+      "tenant_id": "contoso",
+      "instance_id": "cluster-muc-1",
+      "mode": "DEMO",
+      "notes": "A demo profile needs no endpoint and no credential, because a cassette has neither."
+    }
+  ]
+}
