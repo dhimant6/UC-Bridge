@@ -45,4 +45,6 @@ frontmatter above is what tells Spaces to build the `Dockerfile` and route
 traffic to port 7860; without it the Space will not start.
 
 It is already in place on the `space` branch, which is `main` with `README.md`
-swapped for this file. See [`deploy/README.md`](../README.md) for the walkthrough.
+swapped for this file. See [`deploy/huggingface.md`](../huggingface.md) for the
+walkthrough — and note that Docker Spaces now require PRO;
+[`deploy/README.md`](../README.md) covers the free alternative.

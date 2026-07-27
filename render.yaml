@@ -1,0 +1,24 @@
+# Render blueprint. With this committed, "New → Blueprint" reads it and there is
+# nothing to configure by hand.
+#
+# Hugging Face Spaces was the original target, but Docker Spaces moved behind
+# PRO — only Static Spaces are free now, and a static host cannot run the
+# control plane. Render's free instance type still builds a Dockerfile, so the
+# same image serves here unchanged.
+
+services:
+  - type: web
+    name: ucm-bridge-console
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    # Free instances spin down after 15 minutes idle and take about a minute to
+    # come back. Acceptable for a demo; the health check is what tells Render
+    # the process is up, not what keeps it awake.
+    healthCheckPath: /api/health
+    envVars:
+      # Render injects PORT and expects the process to bind it on 0.0.0.0. The
+      # Dockerfile's CMD already does. Pinned here so the value is visible
+      # rather than implicit.
+      - key: PORT
+        value: 10000

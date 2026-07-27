@@ -5,100 +5,94 @@ serves it and the JSON API from a single Python process. No database, no Redis,
 no object store — state is in-process (ADR-0002 leaves storage undecided), so
 anywhere that can run one container can run this.
 
-## Recommendation: Hugging Face Spaces (Docker SDK)
+## What this needs from a host
 
-**Free, no credit card, ever — including for the compute.** This is the only
-mainstream host that runs a real always-addressable container without asking for
-a card at any point, and it is a straightforward `git push`.
+Worth stating before the options, because it rules most of them out:
 
-- 2 vCPU, 16 GB RAM, free "CPU basic" hardware.
-- Public HTTPS URL with a certificate, no configuration.
-- Sleeps after **48 hours** of no visitors and wakes on the next request. On
-  cpu-basic the sleep timer is not configurable.
-- Deploy is `git push`; Spaces builds the `Dockerfile` itself.
+- **A container, or a Python 3.12 runtime plus Node to build the console.**
+- **One long-lived process.** State is in-process, and the pipeline is a
+  sequence — discover, then assess, then plan, then run. Serverless platforms
+  that spread requests across invocations will lose a plan between building it
+  and dry-running it. This is the constraint that eliminates Vercel and Lambda,
+  not cost.
+- **Not much else.** ~200 MB of RAM, no disk, no database, no outbound network.
 
-16 GB of RAM is far more than this needs, and 48 hours is a generous idle window
-compared with the 15-minute spin-downs elsewhere.
+## Recommendation: Render, free instance type
+
+- Builds the `Dockerfile` in this repository, unchanged.
+- **750 free instance-hours a month**, which is more than a month of wall-clock.
+- Public HTTPS with a managed certificate.
+- **Spins down after 15 minutes idle**, ~1 minute to wake on the next request.
+- [`render.yaml`](../render.yaml) in the repository root means there is nothing
+  to configure by hand.
+
+No payment method is required to run free services. Render's own free-tier
+documentation only mentions a payment method in the context of exceeding the
+bandwidth allowance — at which point services without one are suspended rather
+than billed — which is the behaviour of a tier that does not need a card to
+start.
 
 ### Steps
 
-**1. Create the account.** <https://huggingface.co/join> — email and password,
-no card.
+**1. Create the account.** <https://render.com/register> — GitHub, GitLab,
+Google, or email.
 
-**2. Create a write token.** <https://huggingface.co/settings/tokens> → **Create
-new token** → type **Write** → name it `ucm-bridge-deploy` → copy it. This is
-what you paste when git asks for a password; your account password will not
-work.
+**2. New → Blueprint.** <https://dashboard.render.com/blueprints>
 
-**3. Create the Space.** <https://huggingface.co/new-space>
+Point it at `https://github.com/dhimant6/UC-Bridge`. If you would rather not
+grant Render access to your GitHub account, use **Public Git repository** and
+paste the URL — the repository is public, so it works without the integration.
 
-| Field | Value |
-|---|---|
-| Space name | `ucm-bridge-console` |
-| License | leave blank, or pick one |
-| SDK | **Docker** → **Blank** |
-| Hardware | **CPU basic · 2 vCPU · 16 GB · FREE** |
-| Visibility | **Public** (private works, but only you can open it) |
+**3. Apply.** Render reads [`render.yaml`](../render.yaml), finds one web
+service on the free plan, and starts building. Nothing to fill in.
 
-**4. Add the Space as a git remote.** From this repository:
+**4. Watch the build.** Five to eight minutes cold — Render's free builders are
+slower than a laptop, and the image compiles the console with Node before
+installing Python. The log is live in the dashboard.
 
-```bash
-git remote add space https://huggingface.co/spaces/YOUR-USERNAME/ucm-bridge-console
-```
-
-**5. Push the `space` branch to the Space's `main`.**
-
-```bash
-git push space space:main --force
-```
-
-`--force` is right the first time only: the Space was created with a starter
-commit that has no shared history with this repository, and this replaces it.
-Username is your HF username; password is the **token** from step 2.
-
-The `space` branch is `main` with `README.md` swapped for
-[`huggingface/README.md`](huggingface/README.md). Spaces reads that file's YAML
-frontmatter to decide the SDK and the port, and it has to be at the repository
-root — hence a branch rather than putting hosting frontmatter on the project's
-front page.
-
-**6. Watch it build.** The Space page shows the Docker build log. Three to four
-minutes for a cold build. When it flips to **Running**, the console is at
-`https://huggingface.co/spaces/YOUR-USERNAME/ucm-bridge-console`.
+**5. Open it.** `https://ucm-bridge-console.onrender.com`, or whatever name
+Render assigned if that one was taken.
 
 ### Shipping a later change
 
-```bash
-git checkout space && git merge main && cp deploy/huggingface/README.md README.md
-```
+Push to `main`. Render redeploys automatically.
 
-```bash
-git add README.md && git commit -m "Sync from main" && git push space space:main
-```
+### Without the blueprint
 
-No `--force` after the first push. The copy resolves the README either way: if
-`main` changed it the merge conflicts and this overwrites the conflict, and if it
-did not, it is a no-op.
+If you prefer to click through it: **New → Web Service** → connect the repo →
+set **Language** to **Docker** → **Instance Type: Free** → Create. The
+`Dockerfile` and `PORT` are detected.
 
-## Alternatives, and what each costs you
+## Hugging Face Spaces: no longer free for this
 
-| Host | Card needed | Idle behaviour | Notes |
+**Docker Spaces now require PRO.** The Space creation page offers Static free,
+with Gradio and Docker marked *Paid*, and the pricing page lists "Host ZeroGPU,
+Gradio & Docker Spaces" as a PRO feature. Free CPU-basic hardware still exists
+for Spaces that PRO members create; it is the *creation* of a Docker Space that
+is now gated.
+
+If you have PRO, or take the $9/month, everything needed is still here — the
+`space` branch and [`huggingface/README.md`](huggingface/README.md) — and the
+steps are in [huggingface.md](huggingface.md).
+
+A **Static** Space could host the console but not the control plane, so the API
+responses would have to be baked in as fixtures at build time. Every payload is
+deterministic, so that is achievable, but it is a different artefact: the
+guardrail refusals become canned strings rather than the library actually
+refusing, which is the one thing this console exists to demonstrate.
+
+## Everything else, and what it costs you
+
+| Host | Card | Idle | Verdict |
 |---|---|---|---|
-| **Hugging Face Spaces** | No | Sleeps at 48 h | Recommended. Docker, 2 vCPU / 16 GB. |
-| **Render** free web service | Not to sign up; may be asked for compute | Spins down at 15 min, ~1 min cold start | Builds the `Dockerfile`. Verify the card prompt before committing. |
-| **Fly.io / Railway / Koyeb** | Yes | — | All now require a card on the free tier. Ruled out. |
-| **PythonAnywhere** free | No | Always on | **Does not work.** WSGI only, and FastAPI is ASGI. |
-| **GitHub Pages / Cloudflare Pages** | No | Always on | Static only, so the Python control plane cannot run. See below. |
-
-### If you want a zero-backend option
-
-GitHub Pages cannot run Python, so the console would need its API responses
-baked in as fixtures at build time. That is genuinely achievable — every payload
-is deterministic, so a script could capture them — but it is a different
-artefact: the guardrail refusals would be canned strings rather than the library
-actually refusing, which is the one thing this console exists to demonstrate. Not
-recommended unless a permanently-awake link matters more than the demo being
-real.
+| **Render** free | Not to start | Down at 15 min, ~1 min wake | **Recommended.** Docker, 750 h/month. |
+| **Back4App Containers** | No | Sleeps; 600 active hours | Works, but 256 MB RAM is tight and the platform is opinionated. Reasonable fallback. |
+| **Hugging Face Spaces** | No | Sleeps at 48 h | Docker now needs PRO. Static is free but cannot run Python. |
+| **Northflank** free sandbox | Yes, to verify | — | Card required at signup. |
+| **Fly.io / Railway / Koyeb** | Yes | — | All require a card on the free tier. |
+| **Vercel / Netlify Functions** | No | Always warm | **Breaks this app.** Serverless loses in-process state between the plan and the dry run. |
+| **PythonAnywhere** free | No | Always on | **Does not work.** WSGI only; FastAPI is ASGI. |
+| **GitHub / Cloudflare Pages** | No | Always on | Static only. Same trade-off as a Static Space. |
 
 ## Running it locally
 
